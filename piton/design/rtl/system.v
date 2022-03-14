@@ -1,3 +1,4 @@
+// Modified by Barcelona Supercomputing Center on March 3rd, 2022
 // Copyright (c) 2015 Princeton University
 // All rights reserved.
 //
@@ -106,7 +107,7 @@ module system(
     input                                       passthru_chipset_clk_p,
     input                                       passthru_chipset_clk_n,
 `endif // endif PITON_PASSTHRU_CLKS_GEN
-`endif // endif PITON_SYS_INC_PASSTHRU
+`endif // endif PITONSYS_INC_PASSTHRU
 
 `ifndef F1_BOARD
 `ifdef PITON_CHIPSET_CLKS_GEN
@@ -119,6 +120,15 @@ module system(
 
 // 250MHz(VCU118) or 100 MHz(XUPP3R) diff input ref clock for DDR4 memory controller
 `ifdef PITONSYS_DDR4
+ `ifdef PITONSYS_PCIE
+    input  [15:0] pci_express_x16_rxn,
+    input  [15:0] pci_express_x16_rxp,
+    output [15:0] pci_express_x16_txn,
+    output [15:0] pci_express_x16_txp,        
+    input  pcie_perstn,
+    input  pcie_refclk_n,
+    input  pcie_refclk_p,
+  `endif
     input                                       mc_clk_p,
     input                                       mc_clk_n,
 `endif // PITONSYS_DDR4
@@ -142,7 +152,9 @@ module system(
     input sys_clk,
 `endif
 
+`ifndef ALVEOU280_BOARD
     input                                       sys_rst_n,
+`endif
 
 `ifndef PITON_FPGA_SYNTH
     input                                       pll_rst_n,
@@ -181,11 +193,13 @@ module system(
 `ifndef NEXYSVIDEO_BOARD
 `ifndef XUPP3R_BOARD
 `ifndef F1_BOARD
+`ifndef ALVEOU280_BOARD
   input                                         tck_i,
   input                                         tms_i,
   input                                         trst_ni,
   input                                         td_i,
   output                                        td_o,
+`endif//ALVEOU280_BOARD
 `endif//F1_BOARD
 `endif//XUPP3R_BOARD
 `endif //NEXYSVIDEO_BOARD
@@ -216,21 +230,31 @@ module system(
     output                                      ddr_ras_n,
     output                                      ddr_we_n,
     `endif
+    
+    `ifdef ALVEOU280_BOARD
+    output [`DDR3_CK_WIDTH-1:0]                 ddr_ck_c,
+    output [`DDR3_CK_WIDTH-1:0]                 ddr_ck_t,
+    inout  [`DDR3_DQS_WIDTH-1:0]                ddr_dqs_c,
+    inout  [`DDR3_DQS_WIDTH-1:0]                ddr_dqs_t,
+    `else // ALVEOU280_BOARD
+    output [`DDR3_CK_WIDTH-1:0]                 ddr_ck_n,
+    output [`DDR3_CK_WIDTH-1:0]                 ddr_ck_p,
+    inout  [`DDR3_DQS_WIDTH-1:0]                ddr_dqs_n,
+    inout  [`DDR3_DQS_WIDTH-1:0]                ddr_dqs_p,
+    `endif
 
     output [`DDR3_ADDR_WIDTH-1:0]               ddr_addr,
     output [`DDR3_BA_WIDTH-1:0]                 ddr_ba,
-    output [`DDR3_CK_WIDTH-1:0]                 ddr_ck_n,
-    output [`DDR3_CK_WIDTH-1:0]                 ddr_ck_p,
     output [`DDR3_CKE_WIDTH-1:0]                ddr_cke,
     output                                      ddr_reset_n,
     inout  [`DDR3_DQ_WIDTH-1:0]                 ddr_dq,
-    inout  [`DDR3_DQS_WIDTH-1:0]                ddr_dqs_n,
-    inout  [`DDR3_DQS_WIDTH-1:0]                ddr_dqs_p,
     `ifndef NEXYSVIDEO_BOARD
         output [`DDR3_CS_WIDTH-1:0]             ddr_cs_n,
     `endif // endif NEXYSVIDEO_BOARD
     `ifdef PITONSYS_DDR4
     `ifdef XUPP3R_BOARD
+    output                                      ddr_parity,
+    `elsif ALVEOU280_BOARD      
     output                                      ddr_parity,
     `else
     inout [`DDR3_DM_WIDTH-1:0]                  ddr_dm,
@@ -247,23 +271,23 @@ module system(
     output wire [`AXI4_LEN_WIDTH    -1:0]    m_axi_awlen,
     output wire [`AXI4_SIZE_WIDTH   -1:0]    m_axi_awsize,
     output wire [`AXI4_BURST_WIDTH  -1:0]    m_axi_awburst,
-    output wire                                  m_axi_awlock,
+    output wire                              m_axi_awlock,
     output wire [`AXI4_CACHE_WIDTH  -1:0]    m_axi_awcache,
     output wire [`AXI4_PROT_WIDTH   -1:0]    m_axi_awprot,
     output wire [`AXI4_QOS_WIDTH    -1:0]    m_axi_awqos,
     output wire [`AXI4_REGION_WIDTH -1:0]    m_axi_awregion,
     output wire [`AXI4_USER_WIDTH   -1:0]    m_axi_awuser,
-    output wire                                  m_axi_awvalid,
-    input  wire                                  m_axi_awready,
+    output wire                              m_axi_awvalid,
+    input  wire                              m_axi_awready,
 
     // AXI Write Data Channel Signals
     output wire  [`AXI4_ID_WIDTH     -1:0]    m_axi_wid,
     output wire  [`AXI4_DATA_WIDTH   -1:0]    m_axi_wdata,
     output wire  [`AXI4_STRB_WIDTH   -1:0]    m_axi_wstrb,
-    output wire                                   m_axi_wlast,
+    output wire                               m_axi_wlast,
     output wire  [`AXI4_USER_WIDTH   -1:0]    m_axi_wuser,
-    output wire                                   m_axi_wvalid,
-    input  wire                                   m_axi_wready,
+    output wire                               m_axi_wvalid,
+    input  wire                               m_axi_wready,
 
     // AXI Read Address Channel Signals
     output wire  [`AXI4_ID_WIDTH     -1:0]    m_axi_arid,
@@ -271,30 +295,30 @@ module system(
     output wire  [`AXI4_LEN_WIDTH    -1:0]    m_axi_arlen,
     output wire  [`AXI4_SIZE_WIDTH   -1:0]    m_axi_arsize,
     output wire  [`AXI4_BURST_WIDTH  -1:0]    m_axi_arburst,
-    output wire                                   m_axi_arlock,
+    output wire                               m_axi_arlock,
     output wire  [`AXI4_CACHE_WIDTH  -1:0]    m_axi_arcache,
     output wire  [`AXI4_PROT_WIDTH   -1:0]    m_axi_arprot,
     output wire  [`AXI4_QOS_WIDTH    -1:0]    m_axi_arqos,
     output wire  [`AXI4_REGION_WIDTH -1:0]    m_axi_arregion,
     output wire  [`AXI4_USER_WIDTH   -1:0]    m_axi_aruser,
-    output wire                                   m_axi_arvalid,
-    input  wire                                   m_axi_arready,
+    output wire                               m_axi_arvalid,
+    input  wire                               m_axi_arready,
 
     // AXI Read Data Channel Signals
     input  wire  [`AXI4_ID_WIDTH     -1:0]    m_axi_rid,
     input  wire  [`AXI4_DATA_WIDTH   -1:0]    m_axi_rdata,
     input  wire  [`AXI4_RESP_WIDTH   -1:0]    m_axi_rresp,
-    input  wire                                   m_axi_rlast,
+    input  wire                               m_axi_rlast,
     input  wire  [`AXI4_USER_WIDTH   -1:0]    m_axi_ruser,
-    input  wire                                   m_axi_rvalid,
-    output wire                                   m_axi_rready,
+    input  wire                               m_axi_rvalid,
+    output wire                               m_axi_rready,
 
     // AXI Write Response Channel Signals
     input  wire  [`AXI4_ID_WIDTH     -1:0]    m_axi_bid,
     input  wire  [`AXI4_RESP_WIDTH   -1:0]    m_axi_bresp,
     input  wire  [`AXI4_USER_WIDTH   -1:0]    m_axi_buser,
-    input  wire                                   m_axi_bvalid,
-    output wire                                   m_axi_bready,
+    input  wire                               m_axi_bvalid,
+    output wire                               m_axi_bready,
 
     input  wire                                   ddr_ready,
 `endif // endif F1_BOARD
@@ -306,8 +330,8 @@ module system(
     output                                      uart_tx,
     input                                       uart_rx,
 `ifdef VCU118_BOARD
-		input                                       uart_cts,
-		output                                      uart_rts,
+    input                                       uart_cts,
+    output                                      uart_rts,
 `endif // VCU118_BOARD
 `endif // endif PITONSYS_UART
 
@@ -346,7 +370,17 @@ module system(
         inout                                           net_phy_mdio_io,
         output                                          net_phy_mdc,
     `endif
-`endif // PITON_FPGA_ETHERNETLITE
+`elsif PITON_FPGA_ETH_CMAC // PITON_FPGA_ETHERNETLITE
+    `ifdef ALVEOU280_BOARD
+        // GTY quads connected to QSFP unit on Alveo board
+        input          qsfp_ref_clk_n,
+        input          qsfp_ref_clk_p,
+        input   [3:0]  qsfp_4x_grx_n,
+        input   [3:0]  qsfp_4x_grx_p,
+        output  [3:0]  qsfp_4x_gtx_n,
+        output  [3:0]  qsfp_4x_gtx_p,
+    `endif
+`endif // PITON_FPGA_ETH_CMAC
 `endif // endif PITONSYS_IOCTRL
 
 `ifdef GENESYS2_BOARD
@@ -386,12 +420,17 @@ module system(
     input  [3:0]                                sw,
 `elsif XUPP3R_BOARD
     // no switches :(
+`elsif ALVEOU280_BOARD
+    // no switches :(
 `else
     input  [7:0]                                sw,
 `endif
 
 `ifdef XUPP3R_BOARD
     output [3:0]                                leds
+`elsif ALVEOU280_BOARD
+    // no leds, but HBM Catastrophic Over temperature Out, should be tied to 0 to avoid problems when HBM is not used
+    output                                      hbm_cattrip
 `else 
     output [7:0]                                leds
 `endif
@@ -500,7 +539,7 @@ wire [2:0]          passthru_chipset_credit_back_p;
 wire [2:0]          passthru_chipset_credit_back_n;
 
 `ifdef PITONSYS_UART_BOOT
-wire                test_start;
+(* keep="TRUE" *) (* mark_debug="TRUE" *) wire test_start;
 `endif
 `ifdef PITONSYS_UART_RESET
 wire                uart_rst_out_n;
@@ -521,11 +560,44 @@ wire  [`PITON_NUM_TILES*2-1:0] irq;         // level sensitive IR lines, mip & s
 
 `endif
 
+`ifdef PITON_LAGARTO
+// Debug
+wire                     ndmreset;    // non-debug module reset
+wire                     dmactive;    // debug module is active
+wire  [`PITON_NUM_TILES-1:0]   debug_req;   // async debug request
+wire  [`PITON_NUM_TILES-1:0]   unavailable; // communicate whether the hart is unavailable (e.g.: power down)
+// CLINT
+wire                     rtc;         // Real-time clock in (usually 32.768 kHz)
+wire  [`PITON_NUM_TILES-1:0]   timer_irq;   // Timer interrupts
+wire  [`PITON_NUM_TILES-1:0]   ipi;         // software interrupt (a.k.a inter-process-interrupt)
+// PLIC
+wire  [`PITON_NUM_TILES*2-1:0] irq;         // level sensitive IR lines, mip & sip (async)
+// PMU
+wire  [25*(`PITON_NUM_TILES)-1:0] pmu_sig;
+
+`endif
+
 //////////////////////
 // Sequential Logic //
 //////////////////////
 
 `ifdef PITON_ARIANE
+
+ // no RTC at the moment, have to derive it from the system clock
+ // divide by 128
+reg [6:0] rtc_div;
+
+always @(posedge core_ref_clk or negedge chip_rst_n) begin : p_rtc_div
+  if(~chip_rst_n) begin
+    rtc_div <= 7'h0;
+  end else begin
+    rtc_div <= rtc_div + 7'h1;
+  end
+end
+
+assign rtc = rtc_div[6];
+
+`elsif PITON_LAGARTO
 
  // no RTC at the moment, have to derive it from the system clock
  // divide by 128
@@ -553,10 +625,40 @@ assign rtc = rtc_div[6];
 assign uart_rts = 1'b0;
 `endif // VCU118_BOARD
 
+`ifdef ALVEOU280_BOARD
+wire [4:0] sw;
+wire [4:0] pcie_gpio;
+wire [7:0] leds;  
+reg hold_start;
+//    vio_sw vio_sw_i (
+//      .clk(core_ref_clk),  
+//      .probe_out0(sw[0]), 
+//      .probe_out1(sw[1]), 
+//      .probe_out2(sw[2]),
+//      .probe_out3(sw[3]),
+//      .probe_out4(sw[4])
+//    );
+    assign sw[3] = pcie_gpio[0]; //sys_rst_n
+    assign sw[4] = pcie_gpio[1]; // chip_rst_n
+    assign sw[0] = pcie_gpio[2]; // uart_boot_en
+    assign sw[2] = pcie_gpio[3]; // bootrom_linux
+    assign sw[1] = pcie_gpio[4]; // timeout_en
+    
+    // sw[4] = 1, test_start works as usual.
+    // sw[4] = 0, tile stays on reset until going high.
+    // 0) UART_BOOT_EN set to low (sw[0]), bootrom_Ariane (sw[2]=0), timeout low sw[1]
+    // 1) reset the fpga (sw[3]).
+    // 2) Load the Linux BBL via PCIe to address 0x8000_0000 (if UART_BOOT_EN = '1', this address is 0x0)
+    // 3) Active hold_start (sw[4]='1'), letting the RISC-V boot.
+`endif  
+
+
 // Different reset active levels for different boards
 always @ *
 begin
-`ifdef PITON_FPGA_RST_ACT_HIGH
+`ifdef ALVEOU280_BOARD
+    sys_rst_n_rect = sw[3];
+`elsif PITON_FPGA_RST_ACT_HIGH
     sys_rst_n_rect = ~sys_rst_n;
 `else // ifndef PITON_FPGA_RST_ACT_HIGH
     sys_rst_n_rect = sys_rst_n;
@@ -570,7 +672,14 @@ always @ *
 begin
     chip_rst_n = sys_rst_n_rect & passthru_chip_rst_n;
 `ifdef PITONSYS_UART_BOOT
+  `ifndef ALVEOU280_BOARD
     chip_rst_n = chip_rst_n & test_start;
+  `else
+    hold_start = sw[4] & test_start;
+    chip_rst_n = chip_rst_n & hold_start;
+  `endif
+`elsif ALVEOU280_BOARD // PYTONSYS_UART_BOOT
+    chip_rst_n = chip_rst_n & sw[4];
 `endif
 `ifdef PITONSYS_UART_RESET
     chip_rst_n = chip_rst_n & uart_rst_out_n;
@@ -595,7 +704,11 @@ begin
     // part of system).  Current boards supported
     // for passthru only use active low, so it always
     // expects active low
+`ifndef ALVEOU280_BOARD
     chipset_rst_n = sys_rst_n;
+`else
+    chipset_rst_n = sw[3]; 
+`endif
 end
 
 // If there is no passthru, we need to set the resets
@@ -614,7 +727,7 @@ assign passthru_pll_rst_n = 1'b1;
     assign tms_i   = 1'b0;
     assign trst_ni = 1'b0;
     assign td_i    = 1'b0;
-`endif
+`endif //PITON_FPGA_SYNTH
 
 // `ifdef VCU118_BOARD
 //     wire tck_i, tms_i, trst_ni, td_i, td_o;
@@ -637,6 +750,27 @@ assign passthru_pll_rst_n = 1'b1;
 //         .TDO(td_o) // 1-bit input: Test Data Output (TDO) input for USER function.
 //     );
 // `endif
+`ifdef ALVEOU280_BOARD
+     wire tck_i, tms_i, trst_ni, td_i, td_o;
+
+     // hook the RISC-V JTAG TAP into the FPGA JTAG chain
+     BSCANE2 #(
+     .JTAG_CHAIN(2) // Value for USER command. Possible values: 1-4.
+     ) BSCANE2_inst (
+         .CAPTURE(), // 1-bit output: CAPTURE output from TAP controller.
+         .DRCK(), // 1-bit output: Gated TCK output. When SEL is asserted, DRCK toggles when CAPTURE or
+         // SHIFT are asserted.
+         .RESET(trst_ni), // 1-bit output: Reset output for TAP controller.
+         .RUNTEST(), // 1-bit output: Output asserted when TAP controller is in Run Test/Idle state.
+         .SEL(), // 1-bit output: USER instruction active output.
+         .SHIFT(), // 1-bit output: SHIFT output from TAP controller.
+         .TCK(tck_i), // 1-bit output: Test Clock output. Fabric connection to TAP Clock pin.
+         .TDI(td_i), // 1-bit output: Test Data Input (TDI) output from TAP controller.
+         .TMS(tms_i), // 1-bit output: Test Mode Select output. Fabric connection to TAP.
+         .UPDATE(), // 1-bit output: UPDATE output from TAP controller
+         .TDO(td_o) // 1-bit input: Test Data Output (TDO) input for USER function.
+     );
+`endif
 `ifdef VC707_BOARD
     wire tck_i, tms_i, trst_ni, td_i, td_o;
 
@@ -657,7 +791,7 @@ assign passthru_pll_rst_n = 1'b1;
         .UPDATE(), // 1-bit output: UPDATE output from TAP controller
         .TDO(td_o) // 1-bit input: Test Data Output (TDO) input for USER function.
     );
-`endif
+`endif //VC707_BOARD
 `ifdef NEXYSVIDEO_BOARD
     wire tck_i, tms_i, trst_ni, td_i, td_o;
 
@@ -678,9 +812,41 @@ assign passthru_pll_rst_n = 1'b1;
         .UPDATE(), // 1-bit output: UPDATE output from TAP controller
         .TDO(td_o) // 1-bit input: Test Data Output (TDO) input for USER function.
     );
-`endif
+`endif //NEXYSVIDEO_BOARD
+`endif //PITON_ARIANE
+
+`ifdef PITON_LAGARTO
+`ifndef PITON_FPGA_SYNTH
+    wire tck_i, tms_i, trst_ni, td_i, td_o;
+    assign tck_i   = 1'b0;
+    assign tms_i   = 1'b0;
+    assign trst_ni = 1'b0;
+    assign td_i    = 1'b0;
+`endif //PITON_FPGA_SYNTH
+
+ `ifdef ALVEOU280_BOARD
+     wire tck_i, tms_i, trst_ni, td_i, td_o;
+
+     // hook the RISC-V JTAG TAP into the FPGA JTAG chain
+     BSCANE2 #(
+     .JTAG_CHAIN(2) // Value for USER command. Possible values: 1-4.
+     ) BSCANE2_inst (
+         .CAPTURE(), // 1-bit output: CAPTURE output from TAP controller.
+         .DRCK(), // 1-bit output: Gated TCK output. When SEL is asserted, DRCK toggles when CAPTURE or
+         // SHIFT are asserted.
+         .RESET(trst_ni), // 1-bit output: Reset output for TAP controller.
+         .RUNTEST(), // 1-bit output: Output asserted when TAP controller is in Run Test/Idle state.
+         .SEL(), // 1-bit output: USER instruction active output.
+         .SHIFT(), // 1-bit output: SHIFT output from TAP controller.
+         .TCK(tck_i), // 1-bit output: Test Clock output. Fabric connection to TAP Clock pin.
+         .TDI(td_i), // 1-bit output: Test Data Input (TDI) output from TAP controller.
+         .TMS(tms_i), // 1-bit output: Test Mode Select output. Fabric connection to TAP.
+         .UPDATE(), // 1-bit output: UPDATE output from TAP controller
+         .TDO(td_o) // 1-bit input: Test Data Output (TDO) input for USER function.
+     );
 `endif
 
+`endif //PITON_LAGARTO
 
 
 //////////////////////////
@@ -815,6 +981,23 @@ chip chip(
     // PLIC
     .irq_i                          ( irq                        )  // level sensitive IR lines, mip & sip (async)
 `endif
+
+`ifdef PITON_LAGARTO
+    ,
+    // Debug
+    .ndmreset_i                     ( ndmreset                   ), // non-debug module reset
+    .debug_req_i                    ( debug_req                  ), // async debug request
+    .unavailable_o                  ( unavailable                ), // communicate whether the hart is unavailable (e.g.: power down)
+    //CLINT
+    .timer_irq_i                    ( timer_irq                  ), // Timer interrupts
+    .ipi_i                          ( ipi                        ), // software interrupt (a.k.a inter-process-interrupt)
+    // PLIC
+    .irq_i                          ( irq                        ), // level sensitive IR lines, mip & sip (async)
+    // PMU
+    .pmu_sig_o                      ( pmu_sig                    ),
+    .vpu_clk                        (vpu_clk                     )
+`endif
+
 );
 
 
@@ -927,6 +1110,16 @@ chipset chipset(
 
 // 250MHz diff input ref clock for DDR4 memory controller
 `ifdef PITONSYS_DDR4
+    `ifdef PITONSYS_PCIE
+     .pci_express_x16_rxn(pci_express_x16_rxn),
+     .pci_express_x16_rxp(pci_express_x16_rxp),
+     .pci_express_x16_txn(pci_express_x16_txn),
+     .pci_express_x16_txp(pci_express_x16_txp),
+     .pcie_gpio(pcie_gpio),
+     .pcie_perstn(pcie_perstn),
+     .pcie_refclk_n(pcie_refclk_n),
+     .pcie_refclk_p(pcie_refclk_p),
+    `endif
     .mc_clk_p(mc_clk_p),
     .mc_clk_n(mc_clk_n),
 `endif // PITONSYS_DDR4
@@ -1042,18 +1235,28 @@ chipset chipset(
 `endif // PITONSYS_DDR4
     .ddr_addr(ddr_addr),
     .ddr_ba(ddr_ba),
+`ifndef ALVEOU280_BOARD
     .ddr_ck_n(ddr_ck_n),
     .ddr_ck_p(ddr_ck_p),
+    .ddr_dqs_n(ddr_dqs_n),
+    .ddr_dqs_p(ddr_dqs_p),
+`endif
     .ddr_cke(ddr_cke),
     .ddr_reset_n(ddr_reset_n),
     .ddr_dq(ddr_dq),
-    .ddr_dqs_n(ddr_dqs_n),
-    .ddr_dqs_p(ddr_dqs_p),
+
 `ifndef NEXYSVIDEO_BOARD
     .ddr_cs_n(ddr_cs_n),
 `endif // endif NEXYSVIDEO_BOARD
 `ifdef XUPP3R_BOARD
     .ddr_parity(ddr_parity),
+`elsif ALVEOU280_BOARD
+    .ddr_ck_n(ddr_ck_c),
+    .ddr_ck_p(ddr_ck_t),
+    .ddr_dqs_n(ddr_dqs_c),
+    .ddr_dqs_p(ddr_dqs_t),
+    .ddr_parity(ddr_parity),
+    .hbm_cattrip(hbm_cattrip),
 `else
     .ddr_dm(ddr_dm),
 `endif
@@ -1153,8 +1356,15 @@ chipset chipset(
         .net_phy_rst_n      (net_phy_rst_n),
         .net_phy_mdio_io    (net_phy_mdio_io),
         .net_phy_mdc        (net_phy_mdc),
-
-    `endif // PITON_FPGA_ETHERNETLITE
+    `elsif PITON_FPGA_ETH_CMAC // PITON_FPGA_ETHERNETLITE
+         // GTY quads connected to QSFP unit on Alveo board
+        .qsfp_ref_clk_n     (qsfp_ref_clk_n),
+        .qsfp_ref_clk_p     (qsfp_ref_clk_p),
+        .qsfp_4x_grx_n      (qsfp_4x_grx_n),
+        .qsfp_4x_grx_p      (qsfp_4x_grx_p),
+        .qsfp_4x_gtx_n      (qsfp_4x_gtx_n),
+        .qsfp_4x_gtx_p      (qsfp_4x_gtx_p),
+    `endif // PITON_FPGA_ETH_CMAC
 `endif // endif PITONSYS_IOCTRL
 
 `ifdef GENESYS2_BOARD
@@ -1190,7 +1400,11 @@ chipset chipset(
 `endif
 
 `ifndef XUPP3R_BOARD
+`ifdef ALVEOU280_BOARD
+    .sw(sw[2:0]),
+`else
     .sw(sw),
+`endif
 `endif
     .leds(leds)
 
@@ -1214,6 +1428,32 @@ chipset chipset(
     .ipi_o                          ( ipi                        ), // software interrupt (a.k.a inter-process-interrupt)
     // PLIC
     .irq_o                          ( irq                        )  // level sensitive IR lines, mip & sip (async)
+`endif
+
+`ifdef PITON_LAGARTO
+    ,
+    // Debug
+    .ndmreset_o                     ( ndmreset                   ), // non-debug module reset
+    .dmactive_o                     ( dmactive                   ), // debug module is active
+    .debug_req_o                    ( debug_req                  ), // async debug request
+    .unavailable_i                  ( unavailable                ), // communicate whether the hart is unavailable (e.g.: power down)
+    // JTAG
+    .tck_i                          ( tck_i                      ),
+    .tms_i                          ( tms_i                      ),
+    .trst_ni                        ( trst_ni                    ),
+    .td_i                           ( td_i                       ),
+    .td_o                           ( td_o                       ),
+    .tdo_oe_o                       (                            ),
+    //CLINT
+    .rtc_i                          ( rtc                        ), // Real-time clock in (usually 32.768 kHz)
+    .timer_irq_o                    ( timer_irq                  ), // Timer interrupts
+    .ipi_o                          ( ipi                        ), // software interrupt (a.k.a inter-process-interrupt)
+    // PLIC
+    .irq_o                          ( irq                        ), // level sensitive IR lines, mip & sip (async)
+    // PMU
+    .pmu_sig_i                      ( pmu_sig                    ),
+    .pmu_clk                        ( core_ref_clk               ),
+    .vpu_clk                        (vpu_clk                     )
 `endif
 
 );

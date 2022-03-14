@@ -1,3 +1,4 @@
+// Modified by Barcelona Supercomputing Center on March 3rd, 2022
 // ========== Copyright Header Begin ============================================
 // Copyright (c) 2015 Princeton University
 // All rights reserved.
@@ -44,6 +45,7 @@ module uart_top (
     output                                  test_start,
     input                                   test_good_end,
     input                                   test_bad_end,
+    input                                   mc_axi_deadlock,
     output                                  uart_rst_out_n,
     input                                   init_calib_complete,
 
@@ -246,6 +248,8 @@ assign uart16550_rx   = uart_rx;
     `else   // PITONSYS_UART_BOOT
       assign init_done = 1'b1;
     `endif  // PITONSYS_UART_BOOT
+  `else   // PITON_FPGA_MC_SIM
+      assign init_done = 1'b1;
   `endif  // PITON_FPGA_MC_SIM
 `endif  // PITON_BOARD
 
@@ -280,8 +284,11 @@ assign uart16550_rx   = uart_rx;
   `else   // PITONSYS_UART_BOOT
     assign writer_finish      = 1'b1;
   `endif  // PITONSYS_UART_BOOT
+`else   // PITON_FPGA_MC_SIM
+    assign writer_finish      = 1'b1;
 `endif
 
+`ifndef PITON_FPGA_MC_SIM
 `ifdef PITONSYS_UART_BOOT
   uart_reader   uart_reader (
     .axi_clk              (axi_clk              ),
@@ -309,6 +316,9 @@ assign uart16550_rx   = uart_rx;
 `else   // PITONSYS_UART_BOOT
   assign reader_stop = 1'b1;
 `endif  // PITONSYS_UART_BOOT
+`else   // PITON_FPGA_MC_SIM
+  assign reader_stop = 1'b1;
+`endif
 
 `ifdef PITONSYS_UART_RESET
   uart_reseter uart_reseter(
@@ -344,6 +354,7 @@ uart_mux   uart_mux (
 
   .test_good_end        (test_good_end      ),
   .test_bad_end         (test_bad_end       ),
+  .mc_axi_deadlock      (mc_axi_deadlock    ),
 
 `ifdef PITONSYS_UART_BOOT
   .init_axi_awaddr      (init_axi_awaddr    ), 
@@ -472,6 +483,15 @@ uart_mux   uart_mux (
       assign s_axi_awready = 1'b1;
       assign s_axi_wready = 1'b1;
       assign s_axi_arready = 1'b1;
+
+      assign s_axi_rvalid = s_axi_rready;
+      assign s_axi_rdata  = 32'hef;
+      assign s_axi_rresp  = 2'h0;
+
+      assign s_axi_bvalid  = s_axi_bready;
+      assign s_axi_bresp   = 2'h0;
+
+      assign uart_interrupt = 1'b0;
     `else
       uart_16550   uart_16550 (
         .s_axi_aclk       (axi_clk          ),  // input wire s_axi_aclk

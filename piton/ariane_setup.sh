@@ -1,4 +1,5 @@
 #!/bin/bash
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright 2018 ETH Zurich and University of Bologna.
 # Copyright and related rights are licensed under the Solderpad Hardware
 # License, Version 0.51 (the "License"); you may not use this file except in
@@ -76,7 +77,7 @@ export ARIANE_ROOT=${PITON_ROOT}/piton/design/chip/tile/ariane/
 ## GCC and RISCV GCC setup
 export CXX=g++ CC=gcc
 # customize this to a fast local disk
-export RISCV=/scratch/`whoami`/riscv_install
+export RISCV=$PITON_ROOT/riscv
 export VERILATOR_ROOT=$ARIANE_ROOT/tmp/verilator-4.014/
 
 # setup paths

@@ -1,3 +1,4 @@
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Modified by Princeton University on May 24, 2017
 
 # User needs to define these new variables
@@ -60,7 +61,7 @@ fi
 #export LM_LICENSE_FILE=
 
 # define vivado version if it deviates from the default
-#export VIVADO_BIN="vivado"
+export VIVADO_BIN="/opt/Xilinx/Vivado/2020.1/bin/vivado"
 
 # Please define MODELSIM_HOME only if you have MODELSIM, otherwise comment it out.
 

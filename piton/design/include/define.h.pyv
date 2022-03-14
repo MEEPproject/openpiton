@@ -1,3 +1,4 @@
+// Modified by Barcelona Supercomputing Center on March 3rd, 2022
 // Copyright (c) 2015 Princeton University
 // All rights reserved.
 //
@@ -70,6 +71,11 @@ print("`define PITON_Y_TILES %d"   % PITON_Y_TILES)
 `define NOC_OFF_CHIP_NODE_X `OFF_CHIP_NODE_X
 `define NOC_OFF_CHIP_NODE_Y `OFF_CHIP_NODE_Y
 
+// Definitions for noc_axilite_bridge
+`define C_M_AXI_LITE_DATA_WIDTH  `NOC_DATA_WIDTH
+`define C_M_AXI_LITE_ADDR_WIDTH  `NOC_DATA_WIDTH
+`define C_M_AXI_LITE_RESP_WIDTH  2
+
 `define NOC_FBITS_WIDTH     `FINAL_BITS
 `define NOC_FBITS_RESERVED  4'd1
 `define NOC_FBITS_L1        4'd0
@@ -119,6 +125,8 @@ print("`define PITON_Y_TILES %d"   % PITON_Y_TILES)
 `define MSG_SUBLINE_VECTOR      79:76
 `define MSG_ADDR                119:80
 
+`define MSG_INI_Y               137:134
+`define MSG_INI_X               141:138
 `define MSG_LSID                147:142
 `define MSG_SDID                157:148
 `define MSG_SRC_FBITS           161:158
@@ -137,6 +145,8 @@ print("`define PITON_Y_TILES %d"   % PITON_Y_TILES)
 `define MSG_ADDR_                (`MSG_ADDR_HI_):(`MSG_ADDR_LO_)
 
 // HEADER 3
+`define MSG_INI_Y_               9:6
+`define MSG_INI_X_               13:10
 `define MSG_LSID_                19:14 // 147-128:142-128
 `define MSG_SDID_                29:20
 `define MSG_OPTIONS_3_           29:0
@@ -553,6 +563,7 @@ print("`define PITON_Y_TILES %d"   % PITON_Y_TILES)
 `define SPARC_TILE       0
 `define PICORV32_TILE    1
 `define ARIANE_RV64_TILE 2
+`define LAGARTO_M20_TILE 3
 
 `endif
 

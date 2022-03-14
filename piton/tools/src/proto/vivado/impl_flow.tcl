@@ -1,3 +1,4 @@
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright (c) 2016 Princeton University
 # All rights reserved.
 #
@@ -27,9 +28,9 @@
 # This script kicks of an implementation
 # flow for the project
 #
-
 # Boiler plate startup
 set DV_ROOT $::env(DV_ROOT)
+set g_number_of_jobs $::env(NUM_VIVADO_JOBS)
 source $DV_ROOT/tools/src/proto/vivado/setup.tcl
 
 # Get additional protosyn runtime defines
@@ -41,21 +42,59 @@ puts "INFO: Using the following Verilog defines: ${ALL_VERILOG_MACROS}"
 # Open the project
 open_project ${VIVADO_PROJECT_FILE}
 
+
 # Update Verilog MACROs property
 set_property verilog_define ${ALL_VERILOG_MACROS} [get_fileset sources_1]
 set_property verilog_define ${ALL_VERILOG_MACROS} [get_fileset sim_1]
 
 # Some additional effort to meet timing
-set_property flow {Vivado Implementation 2016} [get_runs impl_1]
+set_property flow {Vivado Implementation 2020} [get_runs impl_1]
 set_property strategy Performance_ExtraTimingOpt [get_runs impl_1]
 
 # Dealing with Vivado case, when it locks IPs as old ones
 upgrade_ip [get_ips -all]
 
+# Set the correct frequency for the Xilix UART IP
+
+set UART_FREQ $env(SYSTEM_FREQ)
+puts "Setting AXI UART frequency to ${UART_FREQ}MHz "
+
+set_property -dict [list CONFIG.C_S_AXI_ACLK_FREQ_HZ_d "$UART_FREQ" CONFIG.C_S_AXI_ACLK_FREQ_HZ "${UART_FREQ}000000"] [get_ips uart_16550]
+
 # Extra open/close to make Vivado use defines for a project,
 # not only for synthesis
 close_project
+
+
 open_project ${VIVADO_PROJECT_FILE}
+
+proc synthesis { g_root_dir g_number_of_jobs } {
+
+        set number_of_jobs $g_number_of_jobs
+        reset_run synth_1
+        launch_runs synth_1 -jobs ${g_number_of_jobs}
+        puts "Waiting for the Out Of Context IPs to be synthesized..."
+        wait_on_run synth_1
+        open_run synth_1
+
+	set status [get_property STATUS [get_runs synth_1]]
+
+	if { $status == "synth_design Complete!"} {
+        	write_checkpoint -force $g_root_dir/dcp/synthesis.dcp
+	} else {
+		puts "Synthesis didn't succeed"
+		exit 1
+	}	
+}
+
+
+if { $env(VIVADO_NON_PROJECT_MODE) eq "1" } {
+
+	puts "Project will be implemented in non-project mode. Do make implementation, make bitstream"
+        #TODO: Need to use the right directory to place the dcp file.	
+        synthesis $env(PITON_ROOT) $g_number_of_jobs
+
+} else { 
 
 # Launch implementation
 launch_run impl_1 -to_step write_bitstream -jobs $::env(NUM_VIVADO_JOBS)
@@ -68,4 +107,6 @@ if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
     puts "ERROR: Implementation failed."
 } else {
     puts "INFO: Implementation passed!"
+}
+
 }

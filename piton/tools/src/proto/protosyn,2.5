@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright (c) 2015 Princeton University
 # All rights reserved.
 #
@@ -38,6 +39,7 @@
 
 import os, sys, re, make_mem_map, subprocess, stat, time
 import image2stream as i2s
+import datetime as dt
 from optparse import OptionParser
 from fpga_lib import *
 from dbg import *
@@ -48,6 +50,7 @@ DESIGN_BLOCK_LIST = os.path.join(DV_ROOT, "tools/src/proto/block.list")
 BOARD_TOOL_LIST = os.path.join(DV_ROOT, "tools/src/proto/board.list")
 PROJECT_BUILD_LOG = "make_project.log"
 PROJECT_IMPL_LOG = "implementation.log"
+VIVADO_PATH = "/opt/Xilinx/Vivado/2020.1/bin"
 
 FLOW_STEP_OPTIONS = ["project", "impl"]
 
@@ -64,6 +67,7 @@ def usage():
     print("                  genesys2", file=sys.stderr)
     print("                  nexysVideo", file=sys.stderr)
     print("                  f1", file=sys.stderr)
+    print("                  alveou280", file=sys.stderr)
     print("\n       -d, --design <design>", file=sys.stderr)
     print("              Name of design module to synthesize.  The default is 'system', which", file=sys.stderr)
     print("              synthesizes a full system with chip and chipset. See", file=sys.stderr)
@@ -74,6 +78,7 @@ def usage():
     print("                  pico      (32bit RISCV core)", file=sys.stderr)
     print("                  pico_het  (heterogeneous pico+sparc arrangement)", file=sys.stderr)
     print("                  ariane    (64bit RISCV core)", file=sys.stderr)
+    print("                  lagarto   (64bit RISCV core)", file=sys.stderr)
     print("\n       --network_config <network_config>", file=sys.stderr)
     print("              Name of the network type to be used:", file=sys.stderr)
     print("                  2dmesh_config (default)", file=sys.stderr)
@@ -95,9 +100,13 @@ def usage():
     print("       --config_l2_associativity  <number>", file=sys.stderr)
     print("              Cache associativities, default: 4", file=sys.stderr)
     print("\n       --bram-test <test_name>", file=sys.stderr)
-    print("              Name of the test to be mapped into BRAM", file=sys.stderr)
+    print("              Name of the test to be simulated and mapped into BRAM/DRAM", file=sys.stderr)
+    print("\n       --verdi-dbg", file=sys.stderr)
+    print("              Create Verdi compliant simulation database of test specified by --bram-test option", file=sys.stderr)
     print("\n       --no-ddr", file=sys.stderr)
     print("              Implement design without DDR memory", file=sys.stderr)
+    print("\n       --hbm", file=sys.stderr)
+    print("              Implement design with HBM memory going first (meep entity)", file=sys.stderr)
     print("\n       --eth", file=sys.stderr)
     print("              Add Ethernet controller to implementation", file=sys.stderr)
     print("\n       --uart-dmw <storage type>", file=sys.stderr)
@@ -130,6 +139,8 @@ def usage():
     print("              Run FPGA flow to a specified step (including). Available options are:", file=sys.stderr)
     print("                  project", file=sys.stderr)
     print("                  impl", file=sys.stderr)
+    print("\n       --vnpm", file=sys.stderr)
+    print("\n            Run implementation and bitstrean via GNU Make", file=sys.stderr)
     print("\n       --oled <string>", file=sys.stderr)
     print("\n            String to be displayed on OLED display.", file=sys.stderr)
     print("\n            (Genesys2 and nexysVideo boards only", file=sys.stderr)
@@ -273,7 +284,7 @@ def runImplF1(board, design_data, src_dir, work_dir, log_dir, def_list, slurm, d
     return jid
 
 
-def makeProject(board, design_data, work_dir, log_dir, slurm, dep_list):
+def makeProject(board, hbm, design_data, work_dir, log_dir, slurm, dep_list):
     prev_dir = os.getcwd()
 
     os.chdir(work_dir)
@@ -286,8 +297,14 @@ def makeProject(board, design_data, work_dir, log_dir, slurm, dep_list):
     proj_script = os.path.join(DV_ROOT, "tools/src/proto/" + tool + "/gen_project.tcl")
     proj_log = os.path.join(log_dir, PROJECT_BUILD_LOG)
     jname = "protosyn_mkproj_%s_%s" % (board, design_data["ID"])
+    setUARTXilinxFreq(board, design_data)
+    # Passing parameter to TCL
+    if board == "alveou280" and hbm:
+        os.environ['PROTOSYN_RUNTIME_HBM_FIRST'] = "TRUE"
+        print_info("HBM is defined as primary system RAM")
     jid = None
     if (tool == "vivado"):
+        print_info("The Vivado Path is %s" % os.environ.get('VIVADO_BIN'))
         jid = run_vivado(proj_log, proj_script, design_data["PATH"], board, \
                          slurm, 1, 4096, "1:00:00", jname, dep_list)
     elif (tool == "ise") :
@@ -299,7 +316,7 @@ def makeProject(board, design_data, work_dir, log_dir, slurm, dep_list):
     return jid
 
 
-def runImplFlow(board, design_data, work_dir, log_dir, def_list, slurm, dep_list):
+def runImplFlow(board, eth, design_data, work_dir, log_dir, def_list, slurm, dep_list, vivado_mode):
     prev_dir = os.getcwd()
 
     os.chdir(work_dir)
@@ -327,7 +344,19 @@ def runImplFlow(board, design_data, work_dir, log_dir, def_list, slurm, dep_list
 
     #dname = board + "_piton"
     #os.chdir(dname)
-    print_info("Running FPGA implementation down to bitstream generation")
+
+    if (vivado_mode == False):
+        print_info("Running FPGA implementation down to bitstream generation")
+        os.environ["VIVADO_NON_PROJECT_MODE"] = "0"
+    else:
+        os.environ["VIVADO_NON_PROJECT_MODE"] = "1"
+        print_info("Running FPGA synthesis")
+        print_info("A synthesis design check point will be generated in $PITON_ROOT/dcp")
+
+    now_time = dt.datetime.now()
+    timeStampStr = now_time.strftime("%d-%b-%Y %H:%M")
+    print_info("Synthesis started at %s" % timeStampStr)
+
     design_board_dir = os.path.join(design_data["PATH"], board)
     impl_log = os.path.join(log_dir, PROJECT_IMPL_LOG)
     impl_flow = os.path.join(DV_ROOT, "tools/src/proto/" + tool + "/impl_flow.tcl")
@@ -339,6 +368,10 @@ def runImplFlow(board, design_data, work_dir, log_dir, def_list, slurm, dep_list
     elif (tool == "ise"):
         jid = run_ise(impl_log, impl_flow, design_data["PATH"], board, \
                       slurm, 8, 64000, "6:00:00", jname, dep_list)
+
+    # Copy sw defines for Ethernet core to proper place
+    if board == "alveou280" and eth:
+      os.system('cp -rf $MODEL_DIR/alveou280/system/bd/Eth_CMAC_syst/ip/Eth_CMAC_syst_eth100gb_0/Eth_CMAC_syst_eth100gb_0/header_files/* $DV_ROOT/design/chipset/xilinx/alveou280/ip_cores/eth_cmac_syst/sw/eth_test/src/syst_hw/')
 
     os.chdir(prev_dir)
 
@@ -456,9 +489,13 @@ def setParserOptions(parser):
     parser.add_option("--config_l15_associativity", dest="config_l15_associativity",   action="store", default=4)
     parser.add_option("--config_l2_associativity", dest="config_l2_associativity",   action="store", default=4)
     parser.add_option("--bram-test", dest="test_name", action="store")
+    parser.add_option("--verdi-dbg", dest="verdi_dbg", action="store_true", default=False)
     parser.add_option("--from", dest="from_step", action="store", default=None)
+    parser.add_option("--vnpm", dest="vivado_mode", action="store_true", default=False)
     parser.add_option("--to", dest="to_step", action="store", default=None)
     parser.add_option("--no-ddr", dest="no_ddr", action="store_true", default=False)
+    parser.add_option("--hbm", dest="hbm", action="store_true", default=False)
+    parser.add_option("--vpu", dest="vpu", action="store_true", default=False)
     parser.add_option("--eth", dest="eth", action="store_true", default=False)
     parser.add_option("--uart-dmw", dest="uart_dmw", action="store", default=None)
     parser.add_option("--uart-reset", dest="uart_reset", action="store_true", default=False)
@@ -489,7 +526,11 @@ def makeDefList(options):
     # disable CSM in this case
     if options.core == 'ariane':
         defines.append("NO_RTL_CSM")
-
+    if options.core == 'lagarto':
+        defines.append("NO_RTL_CSM")
+        defines.append("BSC_RTL_SRAMS")
+        if options.vpu:
+            defines.append("VPU_ENABLE")
     if (options.board == "f1"):
         print_info("design option is ignored for f1")
 
@@ -498,6 +539,9 @@ def makeDefList(options):
         defines.append("PITONSYS_NO_MC")
     else:   # default option
         defines.append("PITON_FPGA_MC_DDR3")
+
+    if (options.hbm == True):
+        defines.append("PITON_FPGA_MC_HBM")
 
     # --axi4_mem option
     if (options.axi4_mem == True):
@@ -511,13 +555,13 @@ def makeDefList(options):
         defines.append("PITONSYS_MEM_ZEROER")    
 
     # do not use SD controller if BRAM is used for boot or a test or if board doesn't have sd
-    if (options.test_name != None) or (options.board in {"piton_board", 'xupp3r', "f1"}):
+    if (options.test_name != None) or (options.board in {"piton_board", "xupp3r", "f1", "alveou280"}):
         pass
     else:   # default option
         defines.append("PITON_FPGA_SD_BOOT")
 
     # --bram-test option
-    if options.test_name != None:
+    if (options.test_name != None and options.uart_dmw == "bram"):
         defines.append("PITON_FPGA_BRAM_TEST")
         defines.append("PITONSYS_NO_MC")
 
@@ -577,10 +621,19 @@ def makeDefList(options):
         defines.append("PITON_UART16550")
 
     # --eth CL options is default for chipset
+    os.environ['ALVEO_ETH'] = "0"
+
     if options.eth or options.design == "chipset" or options.design == "system":
         # Ethernet controller is supported on Genesys2 and nexysVideo
         if options.board == "genesys2" or options.board == "nexysVideo":
+            defines.append("PITON_FPGA_ETH")
             defines.append("PITON_FPGA_ETHERNETLITE")
+        # Ethernet controller is also supported on Alveo-U280
+        elif options.board == "alveou280":
+          if options.eth:
+            defines.append("PITON_FPGA_ETH")
+            defines.append("PITON_FPGA_ETH_CMAC")
+            os.environ['ALVEO_ETH'] = "1"
         else:
             print_info("--eth option is ignored for %s" % options.board)
 
@@ -604,6 +657,10 @@ def makeDefList(options):
         defines.append("{OLED_STRING=\\\"%s\\\"}" % disp_string)
 
     return defines
+
+def updateBlockList(options):
+
+    subprocess.Popen('$PITON_ROOT/piton/tools/src/proto/alveou280/update_blocklist.sh ' + options.core, shell=True, executable="/bin/bash")
 
 def makeMemMapping(st_brd, work_dir, log_dir):
     prev_dir = os.getcwd()
@@ -638,6 +695,11 @@ def genUARTInit(board, design_data):
 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000;""" % div, file=f)
     f.close()
 
+def setUARTXilinxFreq(board, design_data):
+    print_info("Using core clock frequency: %s MHz" % design_data["BOARDS"][board]["FREQ"])
+    os.environ['SYSTEM_FREQ'] = str(design_data["BOARDS"][board]["FREQ"])
+
+
 def main():
     parser = OptionParser(add_help_option=False)
     parser = setParserOptions(parser)
@@ -649,6 +711,8 @@ def main():
     ###################################################
     # All options are considered valid from this point
     ###################################################
+
+    #updateBlockList(options)
 
     rc_dir = ProtoDir(options.board, options.design, design_data)
 
@@ -725,6 +789,13 @@ def main():
     os.environ['PITON_Y_TILES']   = str(options.y_tiles)
     os.environ['PITON_NUM_TILES'] = str(options.num_tiles)
 
+    # Supported cores, initialize env variables.
+    os.environ['PITON_PICO']     = "0"
+    os.environ['PITON_ARIANE']   = "0"
+    os.environ['PITON_LAGARTO']  = "0"
+    os.environ['PITON_OST1']     = "0"
+    os.environ['PITON_PICO_HET'] = "0"
+
     # core variant
     print_info("core      = " + str(options.core))
     for i in range(int(options.num_tiles)):
@@ -760,6 +831,14 @@ def main():
         for i in range(int(options.num_tiles)):
             os.environ['RTL_ARIANE' + str(i)] = "1"
             print_info('setenv RTL_ARIANE' + str(i))
+
+    elif options.core == 'lagarto':
+        os.environ['PITON_LAGARTO'] = "1"
+        #os.environ['WT_DCACHE']     = "1"
+
+        for i in range(int(options.num_tiles)):
+            os.environ['RTL_LAGARTO' + str(i)] = "1"
+            print_info('setenv RTL_LAGARTO' + str(i))
 
     elif options.core == 'sparc':
         # this is the default
@@ -807,6 +886,7 @@ def main():
     for d in defines:
         print_info(d)
 
+
     print_info("--------------------------------")
 
     ##################################
@@ -836,6 +916,29 @@ def main():
 
         if options.core == 'ariane':
             config += ' -ariane'
+        
+        if options.core == 'lagarto':
+            config += ' -lagarto'
+
+        if options.board:
+            config += ' -board=' + options.board
+
+        if options.eth:
+            config += ' -eth'
+
+        if options.hbm:
+            config += ' -hbm'
+
+        if options.uart_dmw:
+            config += ' -uart_dmw'
+
+        if options.verdi_dbg:
+            config += ' -vcs_build_args=+vcs+fsdbon'                + \
+                      ' -vcs_build_args=-kdb'                       + \
+                      ' -vcs_build_args=-debug_access+all'          + \
+                      ' -vcs_build_args=-debug_region=cell+encrypt' + \
+                      ' -vcs_build_args=-LDFLAGS'                   + \
+                      ' -vcs_build_args=-Wl,--no-as-needed'
 
         print_info("Synthesizing a test: %s" % options.test_name)
         print_info("Compilation started")
@@ -885,7 +988,7 @@ def main():
     dep_list = []
 
     if run_make_project:
-        jid = makeProject(options.board, design_data, rc_dir.work, rc_dir.log, options.slurm, None)
+        jid = makeProject(options.board, options.hbm, design_data, rc_dir.work, rc_dir.log, options.slurm, None)
         if jid != None:
             dep_list.append(jid)
 
@@ -902,7 +1005,7 @@ def main():
         if int(options.jobs)>1:
             print_info("Using %d jobs in Vivado" % int(options.jobs))
         os.environ['NUM_VIVADO_JOBS']   = str(int(options.jobs))
-        jid = runImplFlow(options.board, design_data, rc_dir.work, rc_dir.log, defines, options.slurm, dep_list)
+        jid = runImplFlow(options.board, options.eth, design_data, rc_dir.work, rc_dir.log, defines, options.slurm, dep_list, options.vivado_mode)
         if jid != None:
             dep_list.append(jid)
 
@@ -935,10 +1038,15 @@ def main():
 
         if run_fpga_impl:
             # check implementation only if project build was successfull
-            if exit_code == 0:
+            if (exit_code == 0) and (not options.vivado_mode):
                 print_info("Checking Project Implementation results")
                 if not implFlowSuccess(rc_dir.log, rc_dir.run):
                     exit_code = 1
+
+        now_time = dt.datetime.now()
+        timeStampStr = now_time.strftime("%d-%b-%Y %H:%M")
+        print_info("Check performed at %s" % timeStampStr)
+
 
     os.chdir(prev_dir)
 

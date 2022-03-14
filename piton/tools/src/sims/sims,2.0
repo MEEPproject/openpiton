@@ -1,3 +1,4 @@
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Modified by Princeton University on June 9th, 2015
 # ========== Copyright Header Begin ==========================================
 #
@@ -174,6 +175,7 @@ Getopt::Long::Configure ('no_auto_abbrev') ;
         'parallel' => 0,
         'ost1' => 0,
         'ariane' => 0,
+        'lagarto' => 0,
         'pico' => 0,
         'pico_het' => 0,
         'post_process_cmd' => [],
@@ -334,6 +336,7 @@ GetOptions (\%opt,
             'parallel!',
             'ost1!',
             'ariane!',
+            'lagarto!',
             'pico!',
             'pico_het!',
             'sparcv9!',
@@ -349,21 +352,38 @@ GetOptions (\%opt,
             'simslog!',
             'simslog_name=s',
             'build_id=s',
+            'board=s',
+            'eth!',
+            'hbm!',
+            'uart_dmw!',
            ) ;
 
 die ("DIE. -ariane and -pico/-pico_het cannot be set simultaneously") if ($opt{ariane} && ($opt{pico} || $opt{pico_het})) ;
+die ("DIE. -lagarto and -pico/-pico_het cannot be set simultaneously") if ($opt{lagarto} && ($opt{pico} || $opt{pico_het})) ;
 die ("DIE. -pico and -pico_het cannot both be set") if ($opt{pico} && $opt{pico_het}) ;
 
 # Setting ost1 by default. This works better than default to 1
 # for heterogeneous-ISA stuff
-if (!$opt{pico} && !$opt{ariane}) {
+if (!$opt{pico} && !$opt{ariane} && !$opt{lagarto} ) {
   $opt{ost1} = 1 ;
 }
+
+# Running generation of some noc_axi4_bridge Verilogs for case noc_axi4_bridge participates in simulation
+# if ($opt{board} eq "alveou280") {
+#   system("pyhp.py $dv_root/design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_sram_data.v.pyv > $dv_root/design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_sram_data.tmp.v");
+#   system("pyhp.py $dv_root/design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_sram_req.v.pyv  > $dv_root/design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_sram_req.tmp.v");
+# }
 
 push (@{$opt{config_cpp_args}}, "-DFLIST_OST1")     if ($opt{ost1} || $opt{pico_het}) ;
 push (@{$opt{config_cpp_args}}, "-DFLIST_PICO")     if ($opt{pico} || $opt{pico_het}) ;
 push (@{$opt{config_cpp_args}}, "-DFLIST_ARIANE")   if ($opt{ariane}) ;
+push (@{$opt{config_cpp_args}}, "-DFLIST_LAGARTO")  if ($opt{lagarto}) ;
 push (@{$opt{config_cpp_args}}, "-DFLIST_ORAM")     if ($opt{oram}) ;
+# Other boards may be added here for simple MC/UART/Ethernet access simulation
+push (@{$opt{config_cpp_args}}, "-DALVEO280")       if ($opt{board} eq "alveou280") ;
+push (@{$opt{config_cpp_args}}, "-DUART_BOOT")      if ($opt{uart_dmw}) ;
+push (@{$opt{config_cpp_args}}, "-DETH_CORE")       if ($opt{eth}) ;
+push (@{$opt{config_cpp_args}}, "-DHBM_DEF")        if ($opt{hbm}) ;
 
 ################################################################################
 # define $result_dir
@@ -1291,6 +1311,23 @@ sub pre_build
     print "done\n";
   }
 
+  if($opt{lagarto}) {
+    print "compiling DTS and bootroms for Lagarto..\n";
+    !system("cd $ENV{LAGARTO_ROOT}/openpiton/bootrom/baremetal && make clean && make all && cd - > /dev/null") or
+      die (" Error compiling DTS (baremetal) for Lagarto.");
+    !system("cd $ENV{LAGARTO_ROOT}/openpiton/bootrom/linux && make clean && make all MAX_HARTS=$ENV{PITON_NUM_TILES} && cd - > /dev/null") or
+      die (" Error compiling DTS (Linux) for Lagarto.");
+    print "done\n";
+    # currently we have two sources (hardcoded in chipset_impl): UART and Ethernet
+    my $num_sources = 2;
+    # 2 targets per core (M/S mode)
+    my $num_targets = 2 * $ENV{PITON_NUM_TILES};
+    print "generating PLIC for Lagarto with $num_targets targets and $num_sources sources...\n";
+    !system("cd $ENV{LAGARTO_ROOT}/src/rv_plic/rtl && ./gen_plic_addrmap.py -t $num_targets -s $num_sources > plic_regmap.sv") or
+      die (" Error generating PLIC for Lagarto.");
+    print "done\n";
+  }
+
   # go back to where this block was invoked
   chdir $cur_dir ;
 }
@@ -1379,7 +1416,7 @@ sub generic_sim_build
       push (@{$opt{vcs_build_args}}, "-l compile.log") ;
 
       # some SystemVerilog-specific options
-      if ($opt{ariane}) {
+      if ($opt{ariane} | $opt{lagarto}) {
           push (@{$opt{vcs_build_args}}, "-sverilog +systemverilogext+.sv") ;
           push (@{$opt{vcs_build_args}}, "-ntb_opts uvm-1.1 +vpi ") ;
       }
@@ -1508,7 +1545,7 @@ sub generic_sim_build
       $build_cmd .= $lib_path;
 
       # the ariane files do not contain the timescale
-      if ($opt{ariane}) {
+      if ($opt{ariane} | $opt{lagarto}) {
         $build_cmd .= " -timescale=1ps/1ps ";
       }
     }
@@ -1549,7 +1586,7 @@ sub generic_sim_build
       $build_cmd .= "--top-module cmp_top " ;
       $build_cmd .= "-Wno-fatal " ;
       $build_cmd .= "-Wno-BLKANDNBLK " ;
-      $build_cmd .= "-Wno-TIMESCALEMOD " ;
+      #$build_cmd .= "-Wno-TIMESCALEMOD " ;
       $build_cmd .= "-DPITON_DPI " ;
       $build_cmd .= "--unroll-count 256 " ;
       $build_cmd .= "-CFLAGS -DVERILATOR " ;
@@ -2220,7 +2257,7 @@ sub assemble_diag
     die "DIE. could not clean up assembly diag run area"  if ($?) ;
 
     # add default path to look for precompiled RISCV 64bit assembly tests diags in case of ariane
-    if ($opt{ariane} and $opt{precompiled}) {
+    if (($opt{ariane} | $opt{lagarto}) and $opt{precompiled}) {
       push @{$opt{asm_diag_root}}, "$ENV{ARIANE_ROOT}/tmp/riscv-tests/build/isa";
       push @{$opt{asm_diag_root}}, "$ENV{ARIANE_ROOT}/tmp/riscv-tests/build/benchmarks";
     }
@@ -2310,7 +2347,7 @@ sub assemble_diag
     if ($opt{rv64}) {
       # RISCV flow for RV64
       if (!$opt{rv64_target_triple}) {
-        if ($opt{ariane}) {
+        if ($opt{ariane} | $opt{lagarto}) {
           $ENV{RV64_TARGET_TRIPLE} = "riscv64-unknown-elf" ;
         }
       } else {
@@ -2320,12 +2357,18 @@ sub assemble_diag
         if ($opt{ariane}) {
           $ENV{RV64_MARCH} = "rv64imafdc" ;
         }
+        if ($opt{lagarto}) {
+          $ENV{RV64_MARCH} = "rv64ima" ;
+        }
       } else {
         $ENV{RV64_MARCH} = $opt{rv64_march} ;
       }
       if (!$opt{rv64_mabi}) {
-        if ($opt{ariane}) {
+        if ($opt{ariane} ) {
           $ENV{RV64_MABI} = "lp64d" ;
+        }
+        if ($opt{lagarto}) {
+          $ENV{RV64_MABI} = "lp64" ;
         }
       } else {
         $ENV{RV64_MABI} = $opt{rv64_mabi} ;
@@ -2655,6 +2698,7 @@ sub parse_args
             'num_tile=s',
             'x_tiles=s',
             'y_tiles=s',
+            'board=s',
             'dynamic_csm=s',
             'gui!',
             'log_all!',
@@ -2712,9 +2756,15 @@ sub parse_args
     }
   }
 
-  $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/verif/env/manycore";
-  $ENV{PROTOSYN_RUNTIME_BOARD} = "";
-
+  # Considering board specific defines, needed when sims is run from protosyn, not to confuse it with their incorrect values
+  if ($opt{board}) {
+    $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/design/xilinx";
+    $ENV{PROTOSYN_RUNTIME_BOARD} = $opt{board};
+  }
+  else {
+    $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/verif/env/manycore";
+    $ENV{PROTOSYN_RUNTIME_BOARD} = "";
+  }
 
   # these arguments may not have any options associated with them
   foreach my $x (@ARGV) {
@@ -2737,7 +2787,7 @@ sub parse_args
     $opt{rv32} = 1 ;
     print "$prg: Building/running for rv32\n" ;
   }
-  if ($opt{ariane}) {
+  if ($opt{ariane} | $opt{lagarto}) {
     $opt{rv64} = 1 ;
     print "$prg: Building/running for rv64\n" ;
   }
@@ -2805,12 +2855,16 @@ sub parse_args
   $ENV{PITON_PICO}     = $opt{pico};
   $ENV{PITON_PICO_HET} = $opt{pico_het};
   $ENV{PITON_ARIANE}   = $opt{ariane};
+  $ENV{PITON_LAGARTO}  = $opt{lagarto};
   push (@{$opt{config_rtl}}, "PITON_OST1")     if ($opt{ost1});
   push (@{$opt{config_rtl}}, "PITON_PICO")     if ($opt{pico});
   push (@{$opt{config_rtl}}, "PITON_PICO")     if ($opt{pico_het});
   push (@{$opt{config_rtl}}, "PITON_PICO_HET") if ($opt{pico_het});
   push (@{$opt{config_rtl}}, "PITON_ARIANE")   if ($opt{ariane});
   push (@{$opt{config_rtl}}, "WT_DCACHE")      if ($opt{ariane});
+  push (@{$opt{config_rtl}}, "PITON_LAGARTO")  if ($opt{lagarto});
+  #push (@{$opt{config_rtl}}, "WT_DCACHE")      if ($opt{lagarto});
+
 
   my $pton_x_tiles="";
   my $pton_y_tiles="";
@@ -2842,6 +2896,8 @@ sub parse_args
         push (@{$opt{config_rtl}}, "RTL_PICO" . $i);
     } elsif ($opt{ariane}) {
         push (@{$opt{config_rtl}}, "RTL_ARIANE" . $i);
+    } elsif ($opt{lagarto}) {
+        push (@{$opt{config_rtl}}, "RTL_LAGARTO" . $i);
     } elsif ($opt{ost1}) {
         push (@{$opt{config_rtl}}, "RTL_SPARC" . $i);
     }
@@ -2989,6 +3045,9 @@ OPENPITON ARGUMENTS
             in the x dimension and Y tiles in the y dimension. If
             -x_tiles and -y_tiles is not specified, the default is
             X=1 and Y=1. The maximum value for both X and Y is 1024.
+            -board=<board_type> enables board specific definitions.
+            -eth enables ethernet related hardware.
+            -hbm enables HBM related definitions.
 
     -ed_enable
             enable Execution Drafting in each core.
@@ -3134,6 +3193,10 @@ VERILOG COMPILATION RELATED
 
     -ariane
            this specifies that the ARIANE RV64GC core shall be used instead of OpenSPARC.
+           in this case, programs are compiled and assembled using the RISCV GCC toolchain.
+
+    -lagarto
+           this specifies that the Lagarto M20 RV64GC core shall be used instead of OpenSPARC.
            in this case, programs are compiled and assembled using the RISCV GCC toolchain.
 
 VERILOG RUNTIME RELATED

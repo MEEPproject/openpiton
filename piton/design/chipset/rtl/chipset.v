@@ -1,3 +1,4 @@
+// Modified by Barcelona Supercomputing Center on March 3rd, 2022
 // Copyright (c) 2015 Princeton University
 // All rights reserved.
 //
@@ -244,8 +245,22 @@ module chipset(
     output [`DDR3_CS_WIDTH-1:0]                 ddr_cs_n,
 `endif // endif NEXYSVIDEO_BOARD
 `ifdef PITONSYS_DDR4
+`ifdef PITONSYS_PCIE
+    input  [15:0] pci_express_x16_rxn,
+    input  [15:0] pci_express_x16_rxp,
+    output [15:0] pci_express_x16_txn,
+    output [15:0] pci_express_x16_txp,   
+    output [4:0] pcie_gpio,     
+    input  pcie_perstn,
+    input  pcie_refclk_n,
+    input  pcie_refclk_p,
+    //
+`endif
 `ifdef XUPP3R_BOARD
     output                                      ddr_parity,
+`elsif ALVEOU280_BOARD
+    output                                      ddr_parity,
+    output                                      hbm_cattrip,    
 `else
     inout [`DDR3_DM_WIDTH-1:0]                  ddr_dm,
 `endif // XUPP3R_BOARD
@@ -355,7 +370,15 @@ module chipset(
         inout                                           net_phy_mdio_io,
         output                                          net_phy_mdc,
 
-    `endif // PITON_FPGA_ETHERNETLITE    
+    `elsif PITON_FPGA_ETH_CMAC // PITON_FPGA_ETHERNETLITE
+        // GTY quads connected to QSFP unit on Alveo board
+        input          qsfp_ref_clk_n,
+        input          qsfp_ref_clk_p,
+        input   [3:0]  qsfp_4x_grx_n,
+        input   [3:0]  qsfp_4x_grx_p,
+        output  [3:0]  qsfp_4x_gtx_n,
+        output  [3:0]  qsfp_4x_gtx_p,
+    `endif // PITON_FPGA_ETH_CMAC
 `else // ifndef PITONSYS_IOCTRL
 
 `endif // endif PITONSYS_IOCTRL
@@ -464,6 +487,9 @@ module chipset(
         input  [3:0]                                        sw,
     `elsif XUPP3R_BOARD
         // no switches :(
+    `elsif ALVEOU280_BOARD
+        input  [2:0]                                        sw,
+        // virtual switches :)
     `else         
         input  [7:0]                                        sw,
     `endif
@@ -498,6 +524,31 @@ module chipset(
     output  [`PITON_NUM_TILES*2-1:0]                  irq_o          // level sensitive IR lines, mip & sip (async)
 `endif
 
+`ifdef PITON_LAGARTO
+    ,
+    // Debug
+    output                                      ndmreset_o,    // non-debug module reset
+    output                                      dmactive_o,    // debug module is active
+    output  [`PITON_NUM_TILES-1:0]                    debug_req_o,   // async debug request
+    input   [`PITON_NUM_TILES-1:0]                    unavailable_i, // communicate whether the hart is unavailable (e.g.: power down)
+    // JTAG
+    input                                       tck_i,
+    input                                       tms_i,
+    input                                       trst_ni,
+    input                                       td_i,
+    output                                      td_o,
+    output                                      tdo_oe_o,
+    // CLINT
+    input                                       rtc_i,         // Real-time clock in (usually 32.768 kHz)
+    output  [`PITON_NUM_TILES-1:0]                    timer_irq_o,   // Timer interrupts
+    output  [`PITON_NUM_TILES-1:0]                    ipi_o,         // software interrupt (a.k.a inter-process-interrupt)
+    // PLIC
+    output  [`PITON_NUM_TILES*2-1:0]                  irq_o,         // level sensitive IR lines, mip & sip (async)
+    // PMU
+    input   [25*(`PITON_NUM_TILES)-1:0]               pmu_sig_i,
+    input                                       pmu_clk,
+    output                                      vpu_clk
+`endif
 );
 
 ///////////////////////
@@ -551,6 +602,7 @@ reg                                             chipset_rst_n_ff;
 // UART boot stuff
 wire                                            uart_boot_en;
 wire                                            uart_timeout_en;
+wire                                            uart_bootrom_linux_en;
 
 // NoC power test hop count from switches if enabled
 wire  [3:0]                                     noc_power_test_hop_count;
@@ -751,6 +803,10 @@ end
             `elsif XUPP3R_BOARD
                 assign uart_boot_en    = 1'b1;
                 assign uart_timeout_en = 1'b0;
+            `elsif ALVEOU280_BOARD
+                assign uart_boot_en    = sw[0];
+                assign uart_timeout_en = sw[1]; 
+                assign uart_bootrom_linux_en = sw[2];
             `else 
                 assign uart_boot_en    = sw[7];
                 assign uart_timeout_en = sw[6];
@@ -761,6 +817,9 @@ end
 
 `ifdef PITON_NOC_POWER_CHIPSET_TEST
     `ifdef VCU118_BOARD
+        // only two switches available...
+        assign noc_power_test_hop_count = {2'b0, sw[3:2]};
+    `elsif ALVEOU280_BOARD
         // only two switches available...
         assign noc_power_test_hop_count = {2'b0, sw[3:2]};
     `elsif XUPP3R_BOARD
@@ -869,8 +928,10 @@ end
             .reset(1'b0),
             .locked(clk_locked),
 
-            // Main chipset clock
+         // Main chipset clock
+           // `ifndef PYTONSYS_LAGARTO
             .chipset_clk(chipset_clk)
+            //`endif
 
             `ifndef PITONSYS_NO_MC
             `ifdef PITON_FPGA_MC_DDR3
@@ -878,11 +939,15 @@ end
                 , .mc_sys_clk(mc_clk)
             `endif // endif PITON_FPGA_MC_DDR3
             `endif // endif PITONSYS_NO_MC
-
-            `ifdef PITONSYS_SPI
+            `ifndef ALVEOU280_BOARD
+             `ifdef PITONSYS_SPI
                 // SPI system clock
-                , .sd_sys_clk(sd_sys_clk)
-            `endif // endif PITONSYS_SPI
+                , . (sd_sys_clk)
+             `endif // endif PITONSYS_SPI
+            `else
+                // Alveo Board doesn't have SD and we need a slower clock for the MEEP VPU
+               , .vpu_clk(vpu_clk)
+            `endif
 
             // Chipset<->passthru clocks
             `ifdef PITONSYS_INC_PASSTHRU
@@ -896,6 +961,10 @@ end
                 .net_phy_clk    (net_phy_clk_inter  ),
                 .net_axi_clk    (net_axi_clk        )
             `endif
+            `ifdef PITON_FPGA_ETH_CMAC
+                ,
+                .net_axi_clk    (net_axi_clk        )
+            `endif
         );
         `endif // endif PITON_CHIPSET_CLKS_GEN
     `else // ifndef F1_BOARD
@@ -903,6 +972,10 @@ end
         assign chipset_clk = sys_clk;
     `endif //ifndef F1_BOARD
 `endif // PITON_BOARD
+
+//`ifdef PYTONSYS_LAGARTO
+//        assign chipset_clk = vpu_clk;
+//`endif
 
 // If we are using a passthru, we need to convert
 // differential signals to single ended
@@ -1278,6 +1351,17 @@ chipset_impl_noc_power_test  chipset_impl (
             .init_calib_complete(init_calib_complete),
             `ifndef F1_BOARD
                 `ifdef PITONSYS_DDR4
+                     `ifdef PITONSYS_PCIE
+                     .pci_express_x16_rxn(pci_express_x16_rxn),
+                     .pci_express_x16_rxp(pci_express_x16_rxp),
+                     .pci_express_x16_txn(pci_express_x16_txn),
+                     .pci_express_x16_txp(pci_express_x16_txp),
+                     .pcie_gpio(pcie_gpio),        
+                     .pcie_perstn(pcie_perstn),
+                     .pcie_refclk_n(pcie_refclk_n),
+                     .pcie_refclk_p(pcie_refclk_p),
+                     
+                     `endif
                     .ddr_act_n(ddr_act_n),                    
                     .ddr_bg(ddr_bg), 
                 `else // PITONSYS_DDR4
@@ -1302,6 +1386,9 @@ chipset_impl_noc_power_test  chipset_impl (
             
                 `ifdef XUPP3R_BOARD
                     .ddr_parity(ddr_parity),
+                `elsif ALVEOU280_BOARD
+                    .ddr_parity(ddr_parity),
+                    .hbm_cattrip(hbm_cattrip),
                 `else
                     .ddr_dm(ddr_dm),
                 `endif // XUPP3R_BOARD
@@ -1377,6 +1464,11 @@ chipset_impl_noc_power_test  chipset_impl (
                 ,
                 .uart_boot_en(uart_boot_en),
                 .uart_timeout_en(uart_timeout_en)
+                `ifdef ALVEOU280_BOARD
+                ,            
+                .bootrom_linux_en(uart_bootrom_linux_en)
+                `endif
+
             `endif // endif PITONSYS_UART_BOOT
         `endif // endif PITONSYS_UART
 
@@ -1411,7 +1503,16 @@ chipset_impl_noc_power_test  chipset_impl (
                 .net_phy_mdio_io    (net_phy_mdio_io        ),
                 .net_phy_mdc        (net_phy_mdc            )
 
-            `endif // PITON_FPGA_ETHERNETLITE   
+            `elsif PITON_FPGA_ETH_CMAC // PITON_FPGA_ETHERNETLITE
+                ,
+                .net_axi_clk         (net_axi_clk           ),
+                .qsfp_ref_clk_n      (qsfp_ref_clk_n),
+                .qsfp_ref_clk_p      (qsfp_ref_clk_p),
+                .qsfp_4x_grx_n       (qsfp_4x_grx_n),
+                .qsfp_4x_grx_p       (qsfp_4x_grx_p),
+                .qsfp_4x_gtx_n       (qsfp_4x_gtx_n),
+                .qsfp_4x_gtx_p       (qsfp_4x_gtx_p)
+            `endif // PITON_FPGA_ETH_CMAC
     `endif // endif PITONSYS_IOCTRL
 
     `ifdef PITON_ARIANE
@@ -1430,6 +1531,26 @@ chipset_impl_noc_power_test  chipset_impl (
         .timer_irq_o            ( timer_irq_o   ),
         .ipi_o                  ( ipi_o         ),
         .irq_o                  ( irq_o         )
+    `endif
+    
+    `ifdef PITON_LAGARTO
+        ,
+        .ndmreset_o             ( ndmreset_o    ),
+        .dmactive_o             ( dmactive_o    ),
+        .debug_req_o            ( debug_req_o   ),
+        .unavailable_i          ( unavailable_i ),
+        .tck_i                  ( tck_i         ),
+        .tms_i                  ( tms_i         ),
+        .trst_ni                ( trst_ni       ),
+        .td_i                   ( td_i          ),
+        .td_o                   ( td_o          ),
+        .tdo_oe_o               ( tdo_oe_o      ),
+        .rtc_i                  ( rtc_i         ),
+        .timer_irq_o            ( timer_irq_o   ),
+        .ipi_o                  ( ipi_o         ),
+        .irq_o                  ( irq_o         ),
+        .pmu_sig_i              ( pmu_sig_i     ),
+        .pmu_clk                ( pmu_clk       )
     `endif
 );
 

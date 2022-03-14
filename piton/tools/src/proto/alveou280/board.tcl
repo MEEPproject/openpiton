@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Princeton University
+# Copyright (c) 2016 Princeton University
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -24,32 +24,11 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Design specific variables.
-# Not intended to be run standalone.
+# Board specific variables
+# Not intended to be run standalone
 #
 
-set DESIGN_NAME "chip"
-
-set DESIGN_INCLUDE_DIRS ""
-
-set DESIGN_DEFAULT_VERILOG_MACROS "PITON_CHIP_FPGA FPGA_SYN_1THREAD PITON_FPGA_NO_DMBR MERGE_L1_DCACHE CONFIG_DISABLE_BIST_CLEAR"
-
-set DESIGN_RTL_IMPL_FILES [concat \
-    ${CHIP_RTL_IMPL_FILES} \
-]
-
-set DESIGN_INCLUDE_FILES [concat \
-    ${CHIP_INCLUDE_FILES}
-]
-
-set DESIGN_IP_FILE_PREFIXES [concat \
-    ${CHIP_IP_FILE_PREFIXES} \
-]
-
-set DESIGN_COE_IP_FILES [concat \
-    ${CHIP_COE_IP_FILES} \
-]
-
-set DESIGN_PRJ_IP_FILES [concat \
-    ${CHIP_PRJ_IP_FILES} \
-]
+set BOARD_PART "xilinx.com:au280:part0:1.1"
+set FPGA_PART "xcu280-fsvh2892-2L-e"
+set VIVADO_FLOW_PERF_OPT 0
+set BOARD_DEFAULT_VERILOG_MACROS "ALVEOU280_BOARD"

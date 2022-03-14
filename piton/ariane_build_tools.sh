@@ -1,4 +1,5 @@
 #!/bin/bash
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright 2018 ETH Zurich and University of Bologna.
 # Copyright and related rights are licensed under the Solderpad Hardware
 # License, Version 0.51 (the "License"); you may not use this file except in
@@ -67,7 +68,7 @@ else
   # ci/install-dtc.sh
   ci/install-spike.sh
   # ci/get-torture.sh
-  ci/install-verilator.sh
+  #ci/install-verilator.sh
 
   # build the RISCV tests if necessary
   VERSION="7cc76ea83b4f827596158c8ba0763e93da65de8f"

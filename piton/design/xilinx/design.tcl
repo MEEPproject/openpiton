@@ -1,3 +1,4 @@
+# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright (c) 2017 Princeton University
 # All rights reserved.
 # 
@@ -34,12 +35,34 @@ set DESIGN_INCLUDE_DIRS ""
 
 set DESIGN_DEFAULT_VERILOG_MACROS "PITON_FULL_SYSTEM PITON_FPGA_NO_DMBR MERGE_L1_DCACHE FPGA_SYN_1THREAD FPGA_FORCE_SRAM_ICACHE_TAG FPGA_FORCE_SRAM_LSU_ICACHE FPGA_FORCE_SRAM_DCACHE_TAG FPGA_FORCE_SRAM_LSU_DCACHE FPGA_FORCE_SRAM_RF16X160 FPGA_FORCE_SRAM_RF32X80 CONFIG_DISABLE_BIST_CLEAR"
 
+
+if {$::env(PITON_ARIANE) != "0"} {	
+    set CORE_RTL_FILES [concat \
+        ${OTHER_RTL_FILES} \
+	${ARIANE_RTL_FILES} \
+    ]
+    puts "Including Ariane RTL files"
+} 
+
+if {$::env(PITON_LAGARTO) != "0" } {
+    source $LAGARTO_ROOT/parseFlistLagarto.tcl
+    set CORE_RTL_FILES [concat \
+	${OTHER_RTL_FILES} \
+	${LAGARTO_RTL_FILES} \
+	${MEEP_VPU_FILES} \
+    ]
+    puts "Including Lagarto RTL files"
+}
+
+
 set DESIGN_RTL_IMPL_FILES [concat \
     ${SYSTEM_RTL_IMPL_FILES} \
     ${CHIP_RTL_IMPL_FILES} \
-    ${PASSTHRU_RTL_IMPL_FILES} \
     ${CHIPSET_RTL_IMPL_FILES} \
+    ${CORE_RTL_FILES} \
 ]
+
+#    ${PASSTHRU_RTL_IMPL_FILES} \
 
 set DESIGN_INCLUDE_FILES [concat \
     ${SYSTEM_INCLUDE_FILES} \
