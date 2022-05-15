@@ -9,7 +9,7 @@ IMPL_DCP    =  $(ROOT_DIR)/dcp/implementation.dcp
 BIT_FILE    =  $(ROOT_DIR)/bitstream/system.bit
 TCL_DIR     =  $(ROOT_DIR)/piton/tools/src/proto/common
 VIVADO_VER  := "2021.2"
-VIVADO_PATH := /opt/Xilinx/Vivado/$(VIVADO_VER)/bin/
+VIVADO_PATH := /tools/Xilinx/Vivado/$(VIVADO_VER)/bin/
 VIVADO_XLNX := $(VIVADO_PATH)/vivado
 VIVADO_OPT  := -mode batch -nolog -nojournal -notrace -source
 CORE        ?= lagarto
@@ -18,7 +18,7 @@ RISCV_DIR   := $(ROOT_DIR)/riscv
 SHELL := /bin/bash
 XTILES ?= 1
 YTILES ?= 1
-PROTO_OPTIONS ?= --vpu --vnpm --eth --hbm
+PROTO_OPTIONS ?= --vpu --vnpm --hbm
 
 #Don't rely on this to call the subprograms
 export PATH := $(VIVADO_PATH):$(PATH)
