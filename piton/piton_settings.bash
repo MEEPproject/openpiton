@@ -62,7 +62,6 @@ fi
 #export LM_LICENSE_FILE=
 
 # define vivado version if it deviates from the default
-#export VIVADO_BIN="/tools/Xilinx/Vivado/2021.2/bin/vivado"
 export VIVADO_BIN=$(which vivado)
 
 # Please define MODELSIM_HOME only if you have MODELSIM, otherwise comment it out.
