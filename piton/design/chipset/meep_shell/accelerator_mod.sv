@@ -4,7 +4,7 @@
 module openpiton_wrapper (    
     input            chipset_clk,
     input            mc_clk,
-    input            vpu_clk,
+    // input            vpu_clk,
     input   [4:0]    pcie_gpio ,
     output 	     ExtArstn,
     // AXI Write Address Channel Signals
@@ -115,7 +115,7 @@ module openpiton_wrapper (
     // input             eth_axi_bvalid ,
     // output            eth_axi_bready ,
 	
-	input [1:0] eth_irq ,
+    //	input [1:0] eth_irq ,
  
     // AXI interface
     // output [5:0]      sram_axi_awid ,

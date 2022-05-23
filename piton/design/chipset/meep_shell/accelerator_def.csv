@@ -1,6 +1,6 @@
 EANAME=openpiton
 PCIE,yes,pcie_axi,1,PCIE_CLK,pcie_clk,pcie_rstn,dma,0
-DDR4,yes,mem_axi,1,DDR_CLK,0x0,mem_calib_complete,0
+DDR4,yes,mem_axi,1,DDR_CLK,0x0,mem_calib_complete,0,mc_clk
 HBM,no,mem_axi,1,CLK1,0x0,mem_calib_complete,00			
 AURORA,no,raw,<name>			
 UART,yes,uart_axi,1,CLK0,0x0,normal,uart_irq
