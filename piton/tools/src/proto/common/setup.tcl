@@ -145,24 +145,22 @@ for {set k 0} {$k < $::env(PITON_LAGARTO)} {incr k} {
 
 puts "INFO: Using Defines: ${ALL_DEFAULT_VERILOG_MACROS}"
 
-# credit goes to https://github.com/PrincetonUniversity/openpiton/issues/50
-# and https://www.xilinx.com/support/answers/72570.html
-set tmp_PYTHONPATH $env(PYTHONPATH)
-set tmp_PYTHONHOME $env(PYTHONHOME)
-unset ::env(PYTHONPATH)
-unset ::env(PYTHONHOME)
 
 # Pre-process PyHP files
 source $DV_ROOT/tools/src/proto/common/pyhp_preprocess.tcl
 set ALL_RTL_IMPL_FILES [pyhp_preprocess ${ALL_RTL_IMPL_FILES}]
 set ALL_INCLUDE_FILES [pyhp_preprocess ${ALL_INCLUDE_FILES}]
 
+if  {[info exists ::env(PITON_ARIANE)]} {
+  set tmp_PYTHONPATH $env(PYTHONPATH)
+  set tmp_PYTHONHOME $env(PYTHONHOME)
+  unset ::env(PYTHONPATH)    
+  unset ::env(PYTHONHOME)
 
-if  {$::env(PITON_ARIANE) != "0"} {
-  puts "INFO: compiling DTS and bootroms for Ariane (MAX_HARTS=$::env(PITON_NUM_TILES), UART_FREQ=$env(CONFIG_SYS_FREQ))..."
+  puts "INFO: compiling DTS and bootroms for Ariane (MAX_HARTS=$::env(PTON_NUM_TILES), UART_FREQ=$env(CONFIG_SYS_FREQ))..."
   set TMP [pwd]
   cd $::env(ARIANE_ROOT)/openpiton/bootrom/baremetal
-  # Note: dd dumps info to stderr that we do not want to interpret
+ # Note: dd dumps info to stderr that we do not want to interpret
   # otherwise this command fails...
   exec make clean 2> /dev/null
   exec make all 2> /dev/null
@@ -180,6 +178,8 @@ if  {$::env(PITON_ARIANE) != "0"} {
   puts "INFO: generating PLIC for Ariane ($NUM_TARGETS targets, $NUM_SOURCES sources)..."
   cd $::env(ARIANE_ROOT)/src/rv_plic/rtl
   exec ./gen_plic_addrmap.py -t $NUM_TARGETS -s $NUM_SOURCES > plic_regmap.sv
+  set ::env(PYTHONPATH) $tmp_PYTHONPATH
+  set ::env(PYTHONHOME) $tmp_PYTHONHOME
 
   cd $TMP
   puts "INFO: done"
