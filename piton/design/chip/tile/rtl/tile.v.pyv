@@ -298,6 +298,7 @@ print(s)
 
     wire                                router_processor_ready_noc1;
     wire                                router_processor_ready_noc2;
+    wire                                arbiter_ready_noc2;
     wire                                router_processor_ready_noc3;
 
     // Processor val/rdy interface
@@ -311,7 +312,9 @@ print(s)
 
 
     wire [`NOC_DATA_WIDTH-1:0]          processor_router_data_noc2;
+    wire [`NOC_DATA_WIDTH-1:0]          arbiter_data_noc2;
     wire                                processor_router_valid_noc2;
+    wire                                arbiter_valid_noc2;
     wire                                buffer_router_yummy_noc2;
 
     wire [`NOC_DATA_WIDTH-1:0]          buffer_router_data_noc2;
@@ -751,9 +754,9 @@ NIB_SIZE = pow(2, NIB_SIZE_LOG2)
     valrdy_to_credit #(<%= NIB_SIZE%>, <%= NIB_SIZE_LOG2 + 1%>) cgno_blk2(
         .clk(clk_gated),
         .reset(~rst_n_f),
-        .data_in(processor_router_data_noc2),
-        .valid_in(processor_router_valid_noc2),
-        .ready_in(router_processor_ready_noc2),
+        .data_in(arbiter_data_noc2),
+        .valid_in(arbiter_valid_noc2),
+        .ready_in(arbiter_ready_noc2),
 
         .data_out(buffer_router_data_noc2),           // Data
         .valid_out(buffer_router_valid_noc2),       // Val signal
@@ -1343,6 +1346,7 @@ if romIsPresent:
 print("    assign lagarto_bootaddr  =  64'h%s;" % bootAddr)
 %>
     vas_tile_core #(
+        .NOC_WIDTH( `NOC_DATA_WIDTH ),
 <%
 str = '''
         .DmBaseAddress          ( 64'h%s ),
@@ -1372,8 +1376,46 @@ print(str)
         .l15_rtrn_i          (l15_rtrn                  ),
 
         // PMU
-        .pmu_sig_o               (pmu_sig_o)
+        .pmu_sig_o               (pmu_sig_o),
+        
+        .req_ready_i  ( acc_req_ready_i ),
+        .req_valid_o  ( acc_req_valid_o ),
+        .req_data_o   ( acc_req_data_o  ),
+        .resp_ready_o ( acc_resp_ready_i ),
+        .resp_valid_i ( acc_resp_valid_o ),
+        .resp_data_i  ( acc_resp_data_o )
     );
+
+    noc2_arbiter_2input #(
+        .NOC_WIDTH ( `NOC_DATA_WIDTH )
+    ) arbiter_impl (
+        .clk_i   ( clk_gated  ),
+        .rst_ni  ( spc_grst_l ),
+
+        .data0_i ( processor_router_data_noc2  ),  // input 0
+        .val0_i  ( processor_router_valid_noc2 ),
+        .rdy0_o  ( router_processor_ready_noc2 ),
+
+        .data1_i ( acc_req_data_o  ),  // input 1
+        .val1_i  ( acc_req_valid_o ),
+        .rdy1_o  ( acc_req_ready_i ),
+
+        .data_o  ( arbiter_data_noc2  ),   // output
+        .val_o   ( arbiter_valid_noc2 ),
+        .rdy_i   ( arbiter_ready_noc2 )
+    );
+
+    // always_comb begin
+    //     if () begin 
+    //         acc_resp_ready_i;
+    //         acc_resp_valid_o;
+    //         acc_resp_data_o;
+    //     end else begin 
+    //         acc_resp_ready_i;
+    //         acc_resp_valid_o;
+    //         acc_resp_data_o;
+    //     end
+    // end
 
     assign unavailable_o = 1'b0;
 
