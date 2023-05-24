@@ -299,6 +299,7 @@ print(s)
     wire                                router_processor_ready_noc1;
     wire                                router_processor_ready_noc2;
     wire                                arbiter_ready_noc2;
+    wire                                acc_req_ready_i;
     wire                                router_processor_ready_noc3;
 
     // Processor val/rdy interface
@@ -313,8 +314,10 @@ print(s)
 
     wire [`NOC_DATA_WIDTH-1:0]          processor_router_data_noc2;
     wire [`NOC_DATA_WIDTH-1:0]          arbiter_data_noc2;
+    wire [`NOC_DATA_WIDTH-1:0]          acc_req_data_o;
     wire                                processor_router_valid_noc2;
     wire                                arbiter_valid_noc2;
+    wire                                acc_req_valid_o;
     wire                                buffer_router_yummy_noc2;
 
     wire [`NOC_DATA_WIDTH-1:0]          buffer_router_data_noc2;
