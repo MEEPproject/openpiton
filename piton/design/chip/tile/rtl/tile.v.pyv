@@ -299,7 +299,9 @@ print(s)
     wire                                router_processor_ready_noc1;
     wire                                router_processor_ready_noc2;
     wire                                arbiter_ready_noc2;
-    wire                                acc_req_ready_i;
+    wire                                acc_req_ready;
+    wire                                acc_resp_ready;
+    wire                                demux_l2_noc3_ready;
     wire                                router_processor_ready_noc3;
 
     // Processor val/rdy interface
@@ -314,10 +316,14 @@ print(s)
 
     wire [`NOC_DATA_WIDTH-1:0]          processor_router_data_noc2;
     wire [`NOC_DATA_WIDTH-1:0]          arbiter_data_noc2;
-    wire [`NOC_DATA_WIDTH-1:0]          acc_req_data_o;
+    wire [`NOC_DATA_WIDTH-1:0]          acc_req_data;
+    wire [`NOC_DATA_WIDTH-1:0]          acc_resp_data;
+    wire [`NOC_DATA_WIDTH-1:0]          demux_l2_noc3_data;
     wire                                processor_router_valid_noc2;
     wire                                arbiter_valid_noc2;
-    wire                                acc_req_valid_o;
+    wire                                acc_req_valid;
+    wire                                acc_resp_valid;
+    wire                                demux_l2_noc3_valid;
     wire                                buffer_router_yummy_noc2;
 
     wire [`NOC_DATA_WIDTH-1:0]          buffer_router_data_noc2;
@@ -1381,44 +1387,32 @@ print(str)
         // PMU
         .pmu_sig_o               (pmu_sig_o),
         
-        .req_ready_i  ( acc_req_ready_i ),
-        .req_valid_o  ( acc_req_valid_o ),
-        .req_data_o   ( acc_req_data_o  ),
-        .resp_ready_o ( acc_resp_ready_i ),
-        .resp_valid_i ( acc_resp_valid_o ),
-        .resp_data_i  ( acc_resp_data_o )
+        .req_ready_i  ( acc_req_ready  ),
+        .req_valid_o  ( acc_req_valid  ),
+        .req_data_o   ( acc_req_data   ),
+        .resp_ready_o ( acc_resp_ready ),
+        .resp_valid_i ( acc_resp_valid ),
+        .resp_data_i  ( acc_resp_data  )
     );
 
     noc2_arbiter_2input #(
         .NOC_WIDTH ( `NOC_DATA_WIDTH )
     ) arbiter_impl (
         .clk_i   ( clk_gated  ),
-        .rst_ni  ( spc_grst_l ),
+        .rst_ni  ( rst_n_f    ),
 
         .data0_i ( processor_router_data_noc2  ),  // input 0
         .val0_i  ( processor_router_valid_noc2 ),
         .rdy0_o  ( router_processor_ready_noc2 ),
 
-        .data1_i ( acc_req_data_o  ),  // input 1
-        .val1_i  ( acc_req_valid_o ),
-        .rdy1_o  ( acc_req_ready_i ),
+        .data1_i ( acc_req_data  ),  // input 1
+        .val1_i  ( acc_req_valid ),
+        .rdy1_o  ( acc_req_ready ),
 
         .data_o  ( arbiter_data_noc2  ),   // output
         .val_o   ( arbiter_valid_noc2 ),
         .rdy_i   ( arbiter_ready_noc2 )
     );
-
-    // always_comb begin
-    //     if () begin 
-    //         acc_resp_ready_i;
-    //         acc_resp_valid_o;
-    //         acc_resp_data_o;
-    //     end else begin 
-    //         acc_resp_ready_i;
-    //         acc_resp_valid_o;
-    //         acc_resp_data_o;
-    //     end
-    // end
 
     assign unavailable_o = 1'b0;
 
@@ -1574,13 +1568,13 @@ endgenerate
         .coreid_x(config_coreid_x),
         .coreid_y(config_coreid_y),
         .noc1_valid_in(buffer_processor_valid_noc1),
-        .noc3_valid_in(buffer_processor_valid_noc3),
+        .noc3_valid_in(demux_l2_noc3_valid),
         .noc1_data_in(buffer_processor_data_noc1),
-        .noc3_data_in(buffer_processor_data_noc3),
+        .noc3_data_in(demux_l2_noc3_data),
         .noc2_ready_out(router_processor_ready_noc2),
 
         .noc1_ready_in(processor_router_ready_noc1),
-        .noc3_ready_in(processor_router_ready_noc3),
+        .noc3_ready_in(demux_l2_noc3_ready),
         .noc2_valid_out(processor_router_valid_noc2),
         .noc2_data_out(processor_router_data_noc2),
 
@@ -1588,6 +1582,22 @@ endgenerate
         .srams_rtap_data (l2_rtap_data),
         .rtap_srams_bist_command (rtap_srams_bist_command),
         .rtap_srams_bist_data (rtap_srams_bist_data)
+    );
+
+    module noc3_demux2 #(
+        .NOC_WIDTH ( `NOC_DATA_WIDTH )
+    ) noc3_demux2_impl (
+        .clk_i   ( clk_gated                   ),
+        .rst_ni  ( rst_n_f                     ),
+        .data_i  ( buffer_processor_data_noc3  ),  // input
+        .val_i   ( buffer_processor_valid_noc3 ),
+        .rdy_o   ( processor_router_ready_noc3 ),
+        .data0_o ( demux_l2_noc3_data          ),  // output 0
+        .val0_0  ( demux_l2_noc3_valid         ),
+        .rdy0_i  ( demux_l2_noc3_ready         ),
+        .data1_o ( acc_resp_data               ),  // output 1
+        .val1_o  ( acc_resp_valid              ),
+        .rdy1_i  ( acc_resp_ready              )
     );
 
     ////////////////////////////////////
