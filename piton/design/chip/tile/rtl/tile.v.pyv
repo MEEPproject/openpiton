@@ -1584,7 +1584,7 @@ endgenerate
         .rtap_srams_bist_data (rtap_srams_bist_data)
     );
 
-    module noc3_demux2_comb #(
+    noc3_demux2_comb #(
         .NOC_WIDTH  ( `NOC_DATA_WIDTH )
     ) noc3_demux2_impl (
         .clk_i      ( clk_gated                   ),
