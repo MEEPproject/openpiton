@@ -64,7 +64,15 @@ module cov_backend (
     input logic                         stall_fpu,
     input logic                         stall_o,
     input wb_exe_instr_t                from_wb_i,
-    input pipeline_flush_t              pipeline_flush_o
+    input pipeline_flush_t              pipeline_flush_o,
+
+    // from wt_dcache.sv
+    input logic [Dcache_Ports-1:0]      miss_replay,  
+    input logic                         wbuffer_empty_o,
+    input logic                         wbuffer_full,  
+    // from dcache_wtbuffer.sv
+    input logic [CACHE_ID_WIDTH-1:0]    miss_id_o,
+    input logic [DCACHE_WBUF_DEPTH-1:0] inval_hit   //incoming refills
     );
 
 
@@ -109,15 +117,13 @@ module cov_backend (
     logic [BRANCH_PMU_EVENTS-1:0] branch_pmu_events;
     logic rs1_bypass, rs2_bypass, rs3_bypass; // rs3 only for FPU op
     logic [PIPELINE_STAGES-1:0] pipeline_stages_flush;
+    logic [3:0] exu_stalling_ops;
+    logic [2:0] forwarded_regs;
+
+    // if statement does not work inside covergroup, so need to generate `ifdef macro
     generate
-        if (drac_pkg::FP_PRESENT) begin
-            logic [3:0] exu_stalling_ops;
-            logic [2:0] forwarded_regs;
+        if (drac_pkg::FP_PRESENT) begin  
             `define FPU_IS_PRESENT
-        end
-        else begin
-            logic [2:0] exu_stalling_ops;
-            logic [1:0] forwarded_regs;
         end
     endgenerate
     
@@ -172,13 +178,13 @@ module cov_backend (
                                                  pmu_flags_o.is_branch_hit, pmu_flags_o.branch_miss, pmu_flags_o.is_branch
                                                 };
 
-    assign exu_stalling_ops                 =   drac_pkg::FP_PRESENT?   {stall_fpu&stall_o, stall_mem&stall_o, stall_div&stall_o, stall_mul&stall_o}  :   {stall_mem&stall_o, stall_div&stall_o, stall_mul&stall_o};
+    assign exu_stalling_ops                 =   drac_pkg::FP_PRESENT?   {stall_fpu&stall_o, stall_mem&stall_o, stall_div&stall_o, stall_mul&stall_o}  :   {1'b0, stall_mem&stall_o, stall_div&stall_o, stall_mul&stall_o};
     assign rs1_bypass                       =   (((from_rr_i.instr.rs1 != 0) & (from_rr_i.instr.rs1 == from_wb_i.rd)  & from_wb_i.valid & !from_rr_i.instr.use_fs1 & !from_wb_i.fregfile_we) |
                                                 ((from_rr_i.instr.rs1 == from_wb_i.frd) & from_wb_i.valid &  from_rr_i.instr.use_fs1 &  from_wb_i.fregfile_we));
     assign rs2_bypass                       =   (((from_rr_i.instr.rs2 != 0) & (from_rr_i.instr.rs2 == from_wb_i.rd)  & from_wb_i.valid & !from_rr_i.instr.use_fs2 & !from_wb_i.fregfile_we) |
                                                 ((from_rr_i.instr.rs2 == from_wb_i.frd) & from_wb_i.valid &  from_rr_i.instr.use_fs2 &  from_wb_i.fregfile_we));
     assign rs3_bypass                       =   ((from_rr_i.instr.rs3 == from_wb_i.frd) & from_rr_i.instr.use_fs3 & from_wb_i.valid & from_wb_i.fregfile_we); // only some FP instructions have rs3 field
-    assign forwarded_regs                   =   drac_pkg::FP_PRESENT?   {rs3_bypass, rs2_bypass, rs1_bypass}    :   {rs2_bypass, rs1_bypass};
+    assign forwarded_regs                   =   drac_pkg::FP_PRESENT?   {rs3_bypass, rs2_bypass, rs1_bypass}    :   {1'b0, rs2_bypass, rs1_bypass};
     assign pipeline_stages_flush            =   {pipeline_flush_o.flush_wb, pipeline_flush_o.flush_exe, pipeline_flush_o.flush_rr, pipeline_flush_o.flush_id, pipeline_flush_o.flush_if};
     
     always_comb begin
@@ -202,9 +208,9 @@ module cov_backend (
     cover property(``sig1``_collides_``sig2``_``cycle_diff``_p);
 
     // macro to check whether two events follow each other within a given clock cycles window
-    `define event2_follows_event1(sig1, sig2, window) \
+    `define event2_follows_event1_be(sig1, sig2, window) \
     property ``sig2``_follows_``sig1``_``window``_p; \
-        @(negedge clk_i) disable iff(~rsn_i && ~en_ld_st_translation_i) \
+        @(negedge clk_i) disable iff(~rsn_i) \
         ``sig1`` |=> ((!$rose(``sig1``)) throughout (##[0:``window``] ``sig2``)); \
     endproperty \
     cover property(``sig2``_follows_``sig1``_``window``_p);
@@ -458,11 +464,19 @@ module cov_backend (
 
             begin: lsu_events_following_each_other
                 begin: dtlb_hit_followed_by_dcache_hit
-                    `event2_follows_event1(dtlb_hit, dcache_hit, 5)
+                    `event2_follows_event1_be(dtlb_hit, dcache_hit, 5)
                 end
 
                 begin: dtlb_hit_followed_by_dcache_miss
-                    `event2_follows_event1(dtlb_hit, dcache_miss, 5)
+                    `event2_follows_event1_be(dtlb_hit, dcache_miss, 5)
+                end
+
+                begin: wbuffer_full_followed_by_wbuffer_empty
+                    `event2_follows_event1_be(wbuffer_full, wbuffer_empty_o, $)
+                end
+
+                begin: wbuffer_empty_followed_by_wbuffer_full
+                    `event2_follows_event1_be(wbuffer_empty_o, wbuffer_full, $)
                 end
             end: lsu_events_following_each_other
 
@@ -534,6 +548,7 @@ module cov_backend (
         ptw_req_for_dtlb_itlb_collide: coverpoint(ptw_req_for_dtlb_miss && ptw_req_for_itlb_miss) iff (rsn_i) {ignore_bins ignore = {0};} //dtlb and itlb miss at the same cycle trying to trigger simultaneous page table walk. RTL gives priority to DTLB miss!
         // Dcache
         dcache_access_requests: coverpoint(dcache_rd_req) iff (rsn_i) {bins ld_ptw_st_access = {[1 : $]};} // dache can be access by load unit, ptw unit, and store unit simultaneously. Check whether we are covering all possible combinations of these three accesses?
+        write_buffer_full: coverpoint(wbuffer_full) iff (rsn_i) {ignore_bins ignore = {0};}
     endgroup: backend_structures_stressed_cg
     backend_structures_stressed_cg backend_structures_stressed_cg_inst;
 
@@ -568,23 +583,30 @@ module cov_backend (
          
         // PMU : Exu stall due to different ops
         `ifdef FPU_IS_PRESENT
-            exu_stall: coverpoint(exu_stalling_ops) iff (rsn_i) {wildcard bins mul_stall = {4'b???1};
-                                                                 wildcard bins div_stall = {4'b??1?};
-                                                                 wildcard bins mem_stall = {4'b?1??};
-                                                                 wildcard bins fpu_stall = {4'b1???};
+            exu_stall: coverpoint(exu_stalling_ops) iff (rsn_i) {wildcard bins mul_stall = {4'b0001};
+                                                                 wildcard bins div_stall = {4'b0010};
+                                                                 wildcard bins mem_stall = {4'b0100};
+                                                                 wildcard bins fpu_stall = {4'b1000};
                                                                  ignore_bins ignore = {0};
                                                                 }
+            // EXU operand/register forwarding/bypassing
+            exu_bypass: coverpoint(forwarded_regs) iff (rsn_i) {bins bypass_reg_combinations[] = {[1 : 7]};} // All possible combinations of source registers forwarding/bypasing
         `else
-            exu_stall: coverpoint(exu_stalling_ops) iff (rsn_i) {wildcard bins mul_stall = {3'b??1};
-                                                                 wildcard bins div_stall = {3'b?1?};
-                                                                 wildcard bins mem_stall = {3'b1??};
+            exu_stall: coverpoint(exu_stalling_ops) iff (rsn_i) {wildcard bins mul_stall = {4'b0??1};
+                                                                 wildcard bins div_stall = {4'b0?1?};
+                                                                 wildcard bins mem_stall = {4'b01??};
                                                                  ignore_bins ignore = {0};
-                                                                }                                                
+                                                                } 
+            exu_bypass: coverpoint(forwarded_regs) iff (rsn_i) {bins bypass_reg_combinations[] = {[1 : 3]};} // All possible combinations of source registers forwarding/bypasing
         `endif
 
-        // EXU operand/register forwarding/bypassing
-        exu_bypass: coverpoint(forwarded_regs) iff (rsn_i) {bins bypass_reg_combinations[] = {[1 : $]};} // All possible combinations of source registers forwarding/bypasing
-
+        dcache_miss_replay: coverpoint(miss_replay[1:0]) iff (rsn_i) {wildcard bins for_ptw_read = {2'b?1};
+                                                                      wildcard bins for_core_read = {2'b1?};
+                                                                      bins for_ptw_and_core_read = {2'b11};
+                                                                      ignore_bins ignore = {2'b00};
+                                                                     }
+        write_buffer_miss_id: coverpoint(miss_id_o) iff (rsn_i) {bins wbuffer_miss_id[] = {[0 : $]};}
+        wbuffer_multiple_inval_hit: coverpoint($countones(inval_hit) > 1) iff (rsn_i) {ignore_bins ignore = {0};}
     endgroup: backend_general_cg
     backend_general_cg backend_general_cg_inst;
 
@@ -593,6 +615,11 @@ module cov_backend (
     endgroup: pmu_events_cg
     pmu_events_cg pmu_events_cg_inst;
 
+    // covergroup dcache_events_cg with function sample(bit [DCACHE_WBUF_DEPTH-1:0] sig, int position);
+    //     write_buffer_hit_entry: coverpoint (position) iff (sig[position]==1) {bins wbuff_hit_entry[] = {[0:DCACHE_WBUF_DEPTH-1]};}
+    // endgroup: dcache_events_cg
+    // dcache_events_cg dcache_events_cg_inst;
+
     /* ----- Instantiate cover groups here -----*/
     initial
     begin
@@ -600,6 +627,7 @@ module cov_backend (
         backend_structures_stressed_cg_inst =   new();
         backend_general_cg_inst             =   new();
         pmu_events_cg_inst                  =   new();
+        //dcache_events_cg_inst               =   new();
     end
 
     /* ----- Sample cover groups here -----*/
@@ -608,7 +636,6 @@ module cov_backend (
         backend_exceptions_cg_inst.sample();
         backend_structures_stressed_cg_inst.sample();
         backend_general_cg_inst.sample();
-
         for(int i=0; i<BRANCH_PMU_EVENTS; i++) begin
             pmu_events_cg_inst.sample(branch_pmu_events, i);
         end

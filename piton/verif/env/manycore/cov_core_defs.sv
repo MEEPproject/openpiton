@@ -11,7 +11,7 @@ parameter IMPLEMENTED_VA_SIZE = 39;
 parameter IMPLEMENTED_PA_SIZE = 32;
 parameter TLB_ENTRIES = 16;
 parameter NUM_IS_BRANCH_ENTRIES = 64;
-parameter Dcache_Ports  = 3; //0 = core load, 1 = ptw load, 2 = core store
+parameter Dcache_Ports  = 3; //0 = ptw load, 1 = core load, 2 = core store
 parameter PIPELINE_STAGES = 5;
 parameter BRANCH_PMU_EVENTS = 9;
 

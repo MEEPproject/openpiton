@@ -133,7 +133,7 @@ module cov_frontend (
     cover property(``sig1``_collides_``sig2``_``cycle_diff``_p);
 
     // macro to check whether two events follow each other within a given clock cycles window
-    `define event2_follows_event1(sig1, sig2, window) \
+    `define event2_follows_event1_fe(sig1, sig2, window) \
     property ``sig2``_follows_``sig1``_``window``_p; \
         @(negedge clk_i) disable iff(~rsn_i && ~en_translation_i) \
         ``sig1`` |=> ((!$rose(``sig1``)) throughout (##[0:``window``] ``sig2``)); \
@@ -445,11 +445,11 @@ module cov_frontend (
 
             begin: ifu_events_following_each_other
                 begin: itlb_hit_followed_by_icache_hit
-                    `event2_follows_event1(itlb_hit, icache_hit, 5)
+                    `event2_follows_event1_fe(itlb_hit, icache_hit, 5)
                 end
 
                 begin: itlb_hit_followed_by_icache_miss
-                    `event2_follows_event1(itlb_hit, icache_miss, 5)
+                    `event2_follows_event1_fe(itlb_hit, icache_miss, 5)
                 end
             end: ifu_events_following_each_other
 
