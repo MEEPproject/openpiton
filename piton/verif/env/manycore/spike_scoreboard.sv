@@ -101,7 +101,7 @@ logic               is_exception;
 logic [63:0]        exception_cause;
 logic               vpu_completed;
 logic               scalar_instr_commit;
-logic               vector_instr_commit;
+logic               vector_inst_completed;
 logic               commit_or_excep;
 logic               is_compressed;
 logic               is_vector;
@@ -110,6 +110,8 @@ logic [11:0]        instr_csr_addr;
 logic               system_instr;
 vec_els_t           vpu_res;
 logic [63:0]        rs1_data;
+logic [31:0]        vec_inst;
+logic [63:0]        vec_pc;
 
 logic [vpu_scoreboard_pkg::MAX_VLEN-1:0] vec_reg_q[$];
 string exception_codes [logic[31:0]];
@@ -120,8 +122,8 @@ assign exception_cause = csr_excep.valid ? csr_cause : wb_stage.ex.cause;
 assign pc_extended = $signed(pc);
 assign xreg_wr_valid = cu_rr_int.write_enable && xreg_dest != 0;
 assign scalar_instr_commit = commit && !control_intf.stall_exe && !is_vector;
-assign vector_instr_commit = vpu_completed;
-assign commit_or_excep = scalar_instr_commit || vector_instr_commit || is_exception;
+assign vector_inst_completed = vpu_completed;
+assign commit_or_excep = scalar_instr_commit || vector_inst_completed || is_exception;
 assign is_compressed = ~&instr[1:0];
 assign is_float = instr[6:0] inside {riscv_pkg::OP_FP,
                                      riscv_pkg::OP_LOAD_FP,
@@ -228,6 +230,11 @@ always @(posedge clk) begin
     vec_reg_q.push_back(vec_reg_t);
 
   end
+
+  if (`VPU_0.issue_valid_i) begin
+    vec_inst  = `VPU_0.issue_instr_i;
+    vec_pc    = wb_stage.pc;
+  end
 end
 `endif // `endif VPU_ENABLE
 
@@ -299,10 +306,9 @@ always @(posedge clk) begin
               end else begin
                 $display("[MEEP-COSIM][RTL]   Core [%0d]: Exception - mcause[%16h] %s", hart_id, exception_cause, exception_codes[exception_cause]);
               end
-          // if there is a vector_instr_commit, corresponding PC, instr and scalar reg data would not be for that instruction so skipping in that scenario
-          // below check would be for every scalar instruction and vector instruction's PC, instruction. Vector reg contents will be checked on completed_valid from VPU
+          // Vector reg contents will be checked on completed_valid from VPU
           end
-          else if (vector_instr_commit) begin
+          else if (vector_inst_completed) begin
             // converting structure into a packed array
             foreach (vector_operands.vd[elem]) begin
               // $display("Spike Vector element[%d] %h", elem, vector_operands.vd[elem]);
@@ -310,14 +316,30 @@ always @(posedge clk) begin
             end
             vec_reg_spike = {<<64{vec_reg_spike}};
             vec_reg_rtl = vec_reg_q.pop_front();
-            $display("[MEEP-COSIM][VPU]   Core [%0d]: PC[%16h] Instr[%8h] DASM(0x%4h)", hart_id, spike_log.pc, spike_log.ins, spike_log.ins);
-            $display("[MEEP-COSIM][VPU]   Core [%0d]: V[%0d][%h]", hart_id, spike_commit_log.dst, vec_reg_rtl);
 
-            if (vec_reg_rtl != vec_reg_spike) begin
-              $fatal(1, "[MEEP-COSIM] Core [%0d]: Vector Reg Mismatch between RTL[%h] and Spike[%h]!", hart_id, vec_reg_rtl, vec_reg_spike);
+            $display("[MEEP-COSIM][VPU]   Core [%0d]: PC[%16h] Instr[%8h] DASM(0x%4h)", hart_id, spike_log.pc, spike_log.ins, spike_log.ins);
+
+            if (vec_inst[6:0] != riscv_pkg::OP_STORE_FP) begin
+
+              $display("[MEEP-COSIM][VPU]   Core [%0d]: V[%0d][%h]", hart_id, spike_commit_log.dst, vec_reg_rtl);
+
+              // Vector Destination Register Data Comparison
+              if (vec_reg_rtl != vec_reg_spike) begin
+                $fatal(1, "[MEEP-COSIM] Core [%0d]: Vector Reg Mismatch between RTL[%h] and Spike[%h]!", hart_id, vec_reg_rtl, vec_reg_spike);
+              end
+            end
+            
+            // Vector PC Comparison
+            if (vec_pc != spike_log.pc) begin
+              $fatal(1, "[MEEP-COSIM] Core [%0d]: PC Mismatch between RTL[%16h] and Spike[%16h]!", hart_id, vec_pc, spike_log.pc);
+            end
+            // Vector Instruction Comparison
+            if (vec_inst != spike_log.ins) begin
+              $fatal(1, "[MEEP-COSIM] Core [%0d]: Instruction Mismatch between RTL[%16h] and Spike[%16h]!", hart_id, vec_inst, spike_log.ins);
             end
           end
-          else if (!vector_instr_commit || is_vector) begin
+
+          else if (scalar_instr_commit && !is_vector) begin
             `PRINT_RTL;
             // PC Comparison
             if (pc_extended != spike_log.pc) begin
@@ -364,7 +386,6 @@ always @(posedge clk) begin
               `PRINT_SPIKE;
               $fatal(1, "[MEEP-COSIM] Core [%0d]: Destination Floating Register Data Mismatch between RTL[%16h] and Spike[%16h]!", hart_id, commit_data, spike_commit_log.data);
             end
-
           end
       end
     end
