@@ -1,6 +1,6 @@
 echo 'Test to check that all configurations run successfully'
 
-SIMS='sims -sys=manycore -x_tiles=1 -y_tiles=1 -config_rtl=FPU_ZAGREB -config_rtl=BSC_RTL_SRAMS -no_verbose'
+SIMS='sims -sys=manycore -x_tiles=1 -y_tiles=1 -config_rtl=FPU_ZAGREB -config_rtl=BSC_RTL_SRAMS -no_verbose -hbm -memtile_enable=RTL'
 rm -f result.log status.log
 
 echo 'Available configs:'
