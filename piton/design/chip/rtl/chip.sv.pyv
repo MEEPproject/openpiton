@@ -179,6 +179,19 @@ module chip(
     output  [27*(`PITON_NUM_TILES)-1:0]               pmu_sig_o
 
 `endif
+
+`ifdef PITON_MEMTILE_ENABLE
+    , // VNOC interface
+    input                                vnoc_req_val_i,
+    input        [VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_i,
+    input     [VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_i,
+    input                                vnoc_req_sgl_flt_i,
+    output                               vnoc_req_rdy_o,
+    output                               vnoc_rsp_val_o,
+    output       [VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_o,
+    output    [VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_o,
+    input                                vnoc_rsp_rdy_i
+`endif
 );
 
 <%
@@ -1217,6 +1230,17 @@ module chip(
         .ipi_i               ( ipi_i[_FLAT_ID_]         ),
         .irq_i               ( irq_i[_FLAT_ID_*2 +: 2]  ),
         .pmu_sig_o           ( pmu_sig_o[27*_FLAT_ID_+:27]),
+    `endif
+    `ifdef PITON_MEMTILE_ENABLE
+       .vnoc_req_val_i       ( vnoc_req_val_i     ),
+       .vnoc_req_dat_i       ( vnoc_req_dat_i     ),
+       .vnoc_req_hdr_i       ( vnoc_req_hdr_i     ),
+       .vnoc_req_sgl_flt_i   ( vnoc_req_sgl_flt_i ),
+       .vnoc_req_rdy_o       ( vnoc_req_rdy_o     ),
+       .vnoc_rsp_val_o       ( vnoc_rsp_val_o     ),
+       .vnoc_rsp_dat_o       ( vnoc_rsp_dat_o     ),
+       .vnoc_rsp_hdr_o       ( vnoc_rsp_hdr_o     ),
+       .vnoc_rsp_rdy_i       ( vnoc_rsp_rdy_i     ),
     `endif
         // ucb from tiles to jtag
         .tile_jtag_ucb_val   ( tile0_jtag_ucb_val      ),

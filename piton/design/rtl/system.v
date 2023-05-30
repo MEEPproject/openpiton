@@ -1257,6 +1257,18 @@ wire                               m_axi_bready;
 
 `endif
 
+`ifdef PITON_MEMTILE_ENABLE
+wire                               vnoc_req_val;
+wire       [VNOC_DATA_WIDTH - 1:0] vnoc_req_dat;
+wire    [VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr;
+wire                               vnoc_req_sgl_flt;
+wire                               vnoc_req_rdy;
+wire                               vnoc_rsp_val;
+wire       [VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat;
+wire    [VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr;
+wire                               vnoc_rsp_rdy;
+`endif
+
 //////////////////////////
 // Sub-module Instances //
 //////////////////////////
@@ -1388,6 +1400,19 @@ chip chip(
     .mcx_processor_noc3_valid(mcx_processor_noc3_valid),
     .mcx_processor_noc3_yummy(mcx_processor_noc3_yummy)
   `endif
+
+`ifdef PITON_MEMTILE_ENABLE
+    // vNoC (vector data NoC) interface -- ProNoC interface
+    .vnoc_req_val_i     ( vnoc_req_val     ),
+    .vnoc_req_dat_i     ( vnoc_req_dat     ),
+    .vnoc_req_hdr_i     ( vnoc_req_hdr     ),
+    .vnoc_req_sgl_flt_i ( vnoc_req_sgl_flt ),
+    .vnoc_req_rdy_o     ( vnoc_req_rdy     ),
+    .vnoc_rsp_val_o     ( vnoc_rsp_val     ),
+    .vnoc_rsp_dat_o     ( vnoc_rsp_dat     ),
+    .vnoc_rsp_hdr_o     ( vnoc_rsp_hdr     ),
+    .vnoc_rsp_rdy_i     ( vnoc_rsp_rdy     ),
+`endif
 
 `ifdef PITON_ARIANE
     ,
@@ -2086,6 +2111,19 @@ chipset chipset(
 `endif // ifndef F1_BOARD
 `endif // PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
+
+`ifdef PITON_MEMTILE_ENABLE
+    // vNoC (vector data NoC) interface -- ProNoC interface
+    .vnoc_req_val_o     ( vnoc_req_val     ),
+    .vnoc_req_dat_o     ( vnoc_req_dat     ),
+    .vnoc_req_hdr_o     ( vnoc_req_hdr     ),
+    .vnoc_req_sgl_flt_o ( vnoc_req_sgl_flt ),
+    .vnoc_req_rdy_i     ( vnoc_req_rdy     ),
+    .vnoc_rsp_val_i     ( vnoc_rsp_val     ),
+    .vnoc_rsp_dat_i     ( vnoc_rsp_dat     ),
+    .vnoc_rsp_hdr_i     ( vnoc_rsp_hdr     ),
+    .vnoc_rsp_rdy_o     ( vnoc_rsp_rdy     ),
+`endif
 
 `ifdef PITONSYS_IOCTRL
 `ifdef PITONSYS_UART

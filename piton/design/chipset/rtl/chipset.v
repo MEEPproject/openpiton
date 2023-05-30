@@ -649,6 +649,17 @@ module chipset(
 `endif //`ifdef PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
+`ifdef PITON_MEMTILE_ENABLE
+    output logic                               vnoc_req_val_o,
+    output logic       [VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,
+    output logic    [VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_o,
+    output logic                               vnoc_req_sgl_flt_o,
+    input  logic                               vnoc_req_rdy_i,
+    input  logic                               vnoc_rsp_val_i,
+    input  logic       [VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_i,
+    input  logic    [VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_i,
+    output logic                               vnoc_rsp_rdy_o,
+`endif
 
 `ifdef PITONSYS_IOCTRL
     `ifdef PITONSYS_UART
@@ -2159,6 +2170,18 @@ chipset_impl_noc_power_test  chipset_impl (
             `endif //ifndef F1_BOARD
         `endif // endif PITON_FPGA_MC_DDR3
     `endif // endif PITONSYS_NO_MC
+
+`ifdef PITON_MEMTILE_ENABLE
+            .vnoc_req_val_o     ( vnoc_req_val_o     ),
+            .vnoc_req_dat_o     ( vnoc_req_dat_o     ),
+            .vnoc_req_hdr_o     ( vnoc_req_hdr_o     ),
+            .vnoc_req_sgl_flt_o ( vnoc_req_sgl_flt_o ),
+            .vnoc_req_rdy_i     ( vnoc_req_rdy_i     ),
+            .vnoc_rsp_val_i     ( vnoc_rsp_val_i     ),
+            .vnoc_rsp_dat_i     ( vnoc_rsp_dat_i     ),
+            .vnoc_rsp_hdr_i     ( vnoc_rsp_hdr_i     ),
+            .vnoc_rsp_rdy_o     ( vnoc_rsp_rdy_o     ),
+`endif
 
     `ifdef PITONSYS_IOCTRL
         `ifdef PITONSYS_UART
