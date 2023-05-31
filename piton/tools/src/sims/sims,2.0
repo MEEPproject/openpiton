@@ -3161,7 +3161,8 @@ sub parse_args
   $ENV{PITON_PRONOC}   = $opt{pronoc};
   $ENV{SA_HEVC_ENABLE} = $opt{sa_hevc_enable};
   $ENV{SA_NN_ENABLE}   = $opt{sa_nn_enable};
-  $ENV{VPU_ENABLE} = $opt{vpu_enable};
+  $ENV{VPU_ENABLE}  = $opt{vpu_enable};
+  $ENV{VPU_2_LANES} = $opt{vpu_enable};
   $ENV{PITON_MANYGUI}  = $opt{mgui_build};
   $ENV{PITON_HBM_LAT}  = $opt{hbm_lat};
   $ENV{PITON_METRO_MPI}  = $opt{metro_mpi_build};
@@ -3177,6 +3178,7 @@ sub parse_args
   push (@{$opt{config_rtl}}, "SA_HEVC_ENABLE") if ($opt{sa_hevc_enable});
   push (@{$opt{config_rtl}}, "SA_NN_ENABLE")   if ($opt{sa_nn_enable});
   push (@{$opt{config_rtl}}, "VPU_ENABLE")    if ($opt{vpu_enable});
+  push (@{$opt{config_rtl}}, "VPU_2_LANES")    if ($opt{vpu_enable});
   push (@{$opt{config_rtl}}, "XBAR_LVRF_ENABLE") if (($opt{sa_nn_enable}) || ($opt{sa_hevc_enable}) || ($opt{vpu_enable}));
   push (@{$opt{config_rtl}}, "PITON_METRO_MPI")   if ($opt{metro_mpi_build});
   push (@{$opt{config_rtl}}, "PITON_COVERAGE")  if ($opt{cov}) ;

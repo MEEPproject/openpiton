@@ -70,7 +70,7 @@ Compiling with torture (to generate signature file for spike):
 
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -config_rtl=OPENPITON_LAGARTO_COMMIT_LOG
 
-Compilation with VPU is made with the `-vpu_enable ` key. User can select the number of lanes to build and run the test. Currently MEEP-VPU supports 2, 4, 8 and 16 lanes. By default 16 lanes are selected, but can be modified by passing a parameter:
+Compilation with VPU is made with the `-vpu_enable ` key. User can select the number of lanes to build and run the test. Currently MEEP-VPU supports 2, 4, 8 and 16 lanes. By default 2 lanes are selected, but can be modified by passing a parameter:
 
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -vpu_enable -config_rtl=VPU_2_LANES
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -vpu_enable -config_rtl=VPU_4_LANES
