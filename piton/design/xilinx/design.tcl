@@ -84,6 +84,12 @@ if {($::env(PITON_SA_ENABLE) != "0") || ($::env(VPU_ENABLE) != "0")} {
     puts "Add crossbar RTL files"
 }
 
+if { $::env(MEMTILE_USE_RTL) != "0" } {
+    source $MEMTILE_ROOT/parseFlistMT.tcl
+    set CORE_RTL_FILES [concat ${CORE_RTL_FILES} ${MEMTILE_RTL_FILES}]
+    puts "Add Memtile RTL files"
+}
+
 if {$::env(PITON_PRONOC) != "0" } {
 	source $PRONOC_ROOT/parseFileListProNoC.tcl
 	set CORE_RTL_FILES [concat ${CORE_RTL_FILES} ${PRONOC_RTL_FILES}]

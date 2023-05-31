@@ -118,6 +118,11 @@ if {($::env(PITON_SA_ENABLE) != "0") || ($::env(VPU_ENABLE) != "0")} {
   puts "Add crossbar include directories"
 }
 
+if  {$::env(MEMTILE_USE_RTL) != "0"} {
+  set ALL_INCLUDE_DIRS [concat ${ALL_INCLUDE_DIRS} ${MEMTILE_INCLUDE_DIRS}]
+  puts "Add Memtile RTL include directories"
+}
+
 if  {$::env(PITON_PRONOC) != "0"} {
   set ALL_INCLUDE_DIRS [concat ${ALL_INCLUDE_DIRS} ${PRONOC_INCLUDE_DIRS}]
   puts "Add ProNoC include directories"
@@ -166,6 +171,10 @@ if  {$::env(VPU_ENABLE) != "0"} {
 
 if {($::env(PITON_SA_ENABLE) != "0") || ($::env(VPU_ENABLE) != "0")} {
   append ALL_DEFAULT_VERILOG_MACROS " XBAR_LVRF_ENABLE"
+}
+
+if  {$::env(MEMTILE_USE_RTL) != "0"} {
+  append ALL_DEFAULT_VERILOG_MACROS " MEMTILE_USE_RTL"
 }
 
 if  {$::env(PITON_PRONOC) != "0"} {
