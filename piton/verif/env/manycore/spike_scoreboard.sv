@@ -112,6 +112,7 @@ vec_els_t           vpu_res;
 logic [63:0]        rs1_data;
 logic [31:0]        vec_inst;
 logic [63:0]        vec_pc;
+vector_operands_t   vector_operands;
 
 logic [vpu_scoreboard_pkg::MAX_VLEN-1:0] vec_reg_q[$];
 string exception_codes [logic[31:0]];
@@ -242,7 +243,6 @@ end
 always @(posedge clk) begin
   automatic logic [vpu_scoreboard_pkg::MAX_VLEN-1:0] vec_reg_spike;
   automatic logic [vpu_scoreboard_pkg::MAX_VLEN-1:0] vec_reg_rtl;
-  automatic vector_operands_t vector_operands;
 
   if(commit_or_excep || (commit && is_exception)) begin
     // Instruction comparison
