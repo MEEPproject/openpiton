@@ -20,11 +20,11 @@ echo '6. lagarto + vpu + sa_nn'
 CORE_CONFIG+=(" -lagarto -vpu_enable -sa_nn_enable ")
 echo '7. lagarto + vpu + sa_nn + sa_hevc'
 CORE_CONFIG+=(" -lagarto -vpu_enable -sa_nn_enable -sa_hevc_enable ")
-echo 'All of them support cov and cosim flag'
+echo 'All of them support cov and cosim flag. For cosim, we support VPU_2_LANES, 4 and 8 LANES.'
 
 FEATURES+=(" ")
 FEATURES+=(" -cov ")
-FEATURES+=(" -cosim -config_rtl=OPENPITON_LAGARTO_COMMIT_LOG")
+FEATURES+=(" -cosim -config_rtl=OPENPITON_LAGARTO_COMMIT_LOG -config_rtl=VPU_8_LANES ")
 FEATURES+=(" -cov -cosim -config_rtl=OPENPITON_LAGARTO_COMMIT_LOG")
 
 for features_id in $(seq 0 $((${#FEATURES[@]} - 1)))
