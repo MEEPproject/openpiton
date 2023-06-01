@@ -53,6 +53,7 @@ while getopts 'sh' OPTION; do
       echo -e  "  eth: \t\tAdd Ethernet controller to implementation"
       echo -e  "  ncmem: \tCreate an alias of the main memory bypassing the cache. Only available with meep option"
       echo -e  "  multimc: \t Multi memory controller" ${NC}
+      echo -e  "  memtile: \t Use memory tile (one per row)" ${NC}
       exit 0
       ;;
     ?)
@@ -131,6 +132,14 @@ function ea_flavours() {
             NTILES=$(($XTILES * $YTILES))
             echo -e ${BP}"    Selected build configuration: Lagarto Hun 1x1  " ${NC}
             ;;
+        acme_ea_1h2v1mt)
+            CORE=lagarto
+            XTILES=1
+            YTILES=1
+            NTILES=$(($XTILES * $YTILES))
+            PROTO_OPTIONS+=" --sa_nn_enable --sa_hevc_enable --vpu_enable --vlanes $VLANES --memtile"
+            echo -e ${BP}"    Selected build configuration: Lagarto Hun 1x1  " ${NC}
+            ;;
         acme_ea_9h8m)
             CORE=lagarto
             XTILES=3
@@ -199,6 +208,10 @@ function ea_options() {
         PROTO_OPTIONS+=" --multimc "
         echo -e ${BC}"    Multi memory controller " ${NC}
         ;;
+        memtile)
+        PROTO_OPTIONS+=" --memtile "
+        echo -e ${BC}"    Memory tile " ${NC}
+        ;;
         [0-9])
         PROTO_OPTIONS+=$1
         ;;
@@ -224,7 +237,7 @@ shift
 ## Build configurations
 #Right flag names
 function protosyn_flags() {
- declare -A map1=( [pronoc]=1 [vnpm]=1 [hbm]=1 [meep]=1 [eth]=1 [ncmem]=1 [multimc]=1)
+ declare -A map1=( [pronoc]=1 [vnpm]=1 [hbm]=1 [meep]=1 [eth]=1 [ncmem]=1 [multimc]=1 [memtile]=1)
  ea_conf=$1
 
 if [ x$1 == x ]; then
