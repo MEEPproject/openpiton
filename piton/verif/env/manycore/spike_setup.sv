@@ -26,8 +26,16 @@ module spike_setup #(parameter NUM_CORES = 1) ();
     end else begin
         $fatal("[MEEP-COSIM] To use spike_seq.sv you need to pass +SPIKE_BIN plusarg, by giving -cosim in sims command");
     end
-    nargs++; // to pass ISA string
-    setup(nargs, {"--isa=RV64IMAFDCV ", argv}, NUM_CORES);
+    // nargs++; // to pass ISA string
+    // setup(nargs, {"--isa=RV64IMAFDCV ", argv}, NUM_CORES);
+    nargs++; // pass ISA string
+    argv = {"--isa=RV64IMAFDCV ", argv};
+    nargs++; // pass varch
+    argv = {$sformatf("--varch=vlen:%0d,elen:64,slen:%0d ", EPI_pkg::MAX_VLEN, EPI_pkg::MAX_VLEN), argv};
+    nargs++; // pass number of processes(cores)
+    argv = {$sformatf("-p=%0d ", NUM_CORES), argv};
+    $display("[MEEP-COSIM] SPIKE's arguments are' %s", argv);
+    setup(nargs, argv);
     $display("[MEEP-COSIM] Setup done for Spike!");
 
     start_execution();
