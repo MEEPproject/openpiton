@@ -633,8 +633,6 @@ def makeDefList(options):
         print_info("design option is ignored for f1")
     if (options.meep_mode == True):
         defines.append("PITONSYS_MEEP")
-        defines.append("MEMTILE_USE_RTL")
-        os.environ['MEMTILE_USE_RTL'] = "1"
         if (options.debug_brom == True):
             defines.append("DEBUG_ROM")
         if (options.eth):
@@ -652,6 +650,9 @@ def makeDefList(options):
         defines.append("PITONSYS_NO_MC")
     else:   # default option
         defines.append("PITON_FPGA_MC_DDR3")
+        defines.append("MEMTILE_USE_RTL")
+        defines.append("PITON_MEMTILE_ENABLE")
+        os.environ['PITON_MEMTILE_ENABLE'] = "1"
 
     if (options.hbm == True):
         defines.append("PITON_FPGA_MC_HBM")
