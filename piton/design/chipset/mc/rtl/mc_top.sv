@@ -621,84 +621,81 @@ localparam HBM_MCS_ADDR  = 9;  // "interleaving" address position of MC channels
  wire                               ncmem_axi_bready;
 `endif // `ifndef PITONSYS_MEEP
 
- noc_axi4_bridge #(
-  `ifdef PITON_ARIANE
-    .SWAP_ENDIANESS (1),
-  `elsif PITON_LAGARTO
-    .SWAP_ENDIANESS (1),
-  `endif
-  `ifdef PITON_FPGA_MC_HBM
-    .AXI4_DAT_WIDTH_USED (HBM_WIDTH),
-    .ADDR_SWAP_LBITS(HBM_MCS_LOG2),
-    .ADDR_SWAP_MSB  (HBM_SIZE_LOG2),
-    .ADDR_SWAP_LSB  (HBM_MCS_ADDR),
-  `endif
-  .NOC2AXI_DESER_ORDER (1),
-  .NUM_REQ_OUTSTANDING_LOG2 ($clog2(`PITON_NUM_TILES * 4))
- ) noc_axi4_bridge_ncmem (
-    .clk                (core_ref_clk),  
-    .rst_n              (sys_rst_n), 
-    .uart_boot_en       (1'b0),
-    .phy_init_done      (noc_axi4_bridge_init_done),
-    .axi_id_deadlock    (),
+memtile_top memtile_top_inst (
+    .clk_i                ( ui_clk               ),
+    .resetn_i             ( ~noc_axi4_bridge_rst ),
+    // memory crossbar master interface -- AXI4 standard
+    .xbar_mem_aclk_i      ( ui_clk               ),
+    .xbar_mem_aresetn_i   ( ~noc_axi4_bridge_rst ),
 
-    .src_bridge_vr_noc2_val(ncmem_flit_in_val),
-    .src_bridge_vr_noc2_dat(ncmem_flit_in_data),
-    .src_bridge_vr_noc2_rdy(ncmem_flit_in_rdy),
+    .xbar_mem_awid_o      ( ncmem_axi_awid       ),
+    .xbar_mem_awaddr_o    ( ncmem_axi_awaddr     ),
+    .xbar_mem_awlen_o     ( ncmem_axi_awlen      ),
+    .xbar_mem_awsize_o    ( ncmem_axi_awsize     ),
+    .xbar_mem_awburst_o   ( ncmem_axi_awburst    ),
+    .xbar_mem_awlock_o    ( ncmem_axi_awlock     ),
+    .xbar_mem_awcache_o   ( ncmem_axi_awcache    ),
+    .xbar_mem_awprot_o    ( ncmem_axi_awprot     ),
+    .xbar_mem_awqos_o     ( ncmem_axi_awqos      ),
+    .xbar_mem_awregion_o  ( ncmem_axi_awregion   ),
+    .xbar_mem_awuser_o    ( ncmem_axi_awuser     ),
+    .xbar_mem_awvalid_o   ( ncmem_axi_awvalid    ),
+    .xbar_mem_awready_i   ( ncmem_axi_awready    ),
 
-    .bridge_dst_vr_noc3_val(ncmem_flit_out_val),
-    .bridge_dst_vr_noc3_dat(ncmem_flit_out_data),
-    .bridge_dst_vr_noc3_rdy(ncmem_flit_out_rdy),
+    .xbar_mem_wid_o       ( ncmem_axi_wid        ),
+    .xbar_mem_wdata_o     ( ncmem_axi_wdata      ),
+    .xbar_mem_wstrb_o     ( ncmem_axi_wstrb      ),
+    .xbar_mem_wlast_o     ( ncmem_axi_wlast      ),
+    .xbar_mem_wuser_o     ( ncmem_axi_wuser      ),
+    .xbar_mem_wvalid_o    ( ncmem_axi_wvalid     ),
+    .xbar_mem_wready_i    ( ncmem_axi_wready     ),
 
-    .m_axi_awid(ncmem_axi_awid),
-    .m_axi_awaddr(ncmem_axi_awaddr),
-    .m_axi_awlen(ncmem_axi_awlen),
-    .m_axi_awsize(ncmem_axi_awsize),
-    .m_axi_awburst(ncmem_axi_awburst),
-    .m_axi_awlock(ncmem_axi_awlock),
-    .m_axi_awcache(ncmem_axi_awcache),
-    .m_axi_awprot(ncmem_axi_awprot),
-    .m_axi_awqos(ncmem_axi_awqos),
-    .m_axi_awregion(ncmem_axi_awregion),
-    .m_axi_awuser(ncmem_axi_awuser),
-    .m_axi_awvalid(ncmem_axi_awvalid),
-    .m_axi_awready(ncmem_axi_awready),
+    .xbar_mem_bid_i       ( ncmem_axi_bid        ),
+    .xbar_mem_bresp_i     ( ncmem_axi_bresp      ),
+    .xbar_mem_buser_i     ( ncmem_axi_buser      ),
+    .xbar_mem_bvalid_i    ( ncmem_axi_bvalid     ),
+    .xbar_mem_bready_o    ( ncmem_axi_bready     ),
 
-    .m_axi_wid(ncmem_axi_wid),
-    .m_axi_wdata(ncmem_axi_wdata),
-    .m_axi_wstrb(ncmem_axi_wstrb),
-    .m_axi_wlast(ncmem_axi_wlast),
-    .m_axi_wuser(ncmem_axi_wuser),
-    .m_axi_wvalid(ncmem_axi_wvalid),
-    .m_axi_wready(ncmem_axi_wready),
+    .xbar_mem_arid_o      ( ncmem_axi_arid       ),
+    .xbar_mem_araddr_o    ( ncmem_axi_araddr     ),
+    .xbar_mem_arlen_o     ( ncmem_axi_arlen      ),
+    .xbar_mem_arsize_o    ( ncmem_axi_arsize     ),
+    .xbar_mem_arburst_o   ( ncmem_axi_arburst    ),
+    .xbar_mem_arlock_o    ( ncmem_axi_arlock     ),
+    .xbar_mem_arcache_o   ( ncmem_axi_arcache    ),
+    .xbar_mem_arprot_o    ( ncmem_axi_arprot     ),
+    .xbar_mem_arqos_o     ( ncmem_axi_arqos      ),
+    .xbar_mem_arregion_o  ( ncmem_axi_arregion   ),
+    .xbar_mem_aruser_o    ( ncmem_axi_aruser     ),
+    .xbar_mem_arvalid_o   ( ncmem_axi_arvalid    ),
+    .xbar_mem_arready_i   ( ncmem_axi_arready    ),
 
-    .m_axi_bid(ncmem_axi_bid),
-    .m_axi_bresp(ncmem_axi_bresp),
-    .m_axi_buser(ncmem_axi_buser),
-    .m_axi_bvalid(ncmem_axi_bvalid),
-    .m_axi_bready(ncmem_axi_bready),
+    .xbar_mem_rid_i       ( ncmem_axi_rid        ),
+    .xbar_mem_rdata_i     ( ncmem_axi_rdata      ),
+    .xbar_mem_rresp_i     ( ncmem_axi_rresp      ),
+    .xbar_mem_rlast_i     ( ncmem_axi_rlast      ),
+    .xbar_mem_ruser_i     ( ncmem_axi_ruser      ),
+    .xbar_mem_rvalid_i    ( ncmem_axi_rvalid     ),
+    .xbar_mem_rready_o    ( ncmem_axi_rready     ),
 
-    .m_axi_arid(ncmem_axi_arid),
-    .m_axi_araddr(ncmem_axi_araddr),
-    .m_axi_arlen(ncmem_axi_arlen),
-    .m_axi_arsize(ncmem_axi_arsize),
-    .m_axi_arburst(ncmem_axi_arburst),
-    .m_axi_arlock(ncmem_axi_arlock),
-    .m_axi_arcache(ncmem_axi_arcache),
-    .m_axi_arprot(ncmem_axi_arprot),
-    .m_axi_arqos(ncmem_axi_arqos),
-    .m_axi_arregion(ncmem_axi_arregion),
-    .m_axi_aruser(ncmem_axi_aruser),
-    .m_axi_arvalid(ncmem_axi_arvalid),
-    .m_axi_arready(ncmem_axi_arready),
+    // cNoC (compute NoC) interface -- OpenPiton NoC interface
+    .cnoc_req_val_i       ( ncmem_flit_in_val    ),
+    .cnoc_req_dat_i       ( ncmem_flit_in_data   ),
+    .cnoc_req_rdy_o       ( ncmem_flit_in_rdy    ),
+    .cnoc_rsp_val_o       ( ncmem_flit_out_val   ),
+    .cnoc_rsp_dat_o       ( ncmem_flit_out_data  ),
+    .cnoc_rsp_rdy_i       ( ncmem_flit_out_rdy   ),
 
-    .m_axi_rid(ncmem_axi_rid),
-    .m_axi_rdata(ncmem_axi_rdata),
-    .m_axi_rresp(ncmem_axi_rresp),
-    .m_axi_rlast(ncmem_axi_rlast),
-    .m_axi_ruser(ncmem_axi_ruser),
-    .m_axi_rvalid(ncmem_axi_rvalid),
-    .m_axi_rready(ncmem_axi_rready)
+    // vNoC (vector data NoC) interface -- ProNoC interface
+    .vnoc_req_val_o       ( ),
+    .vnoc_req_dat_o       ( ),
+    .vnoc_req_hdr_o       ( ),
+    .vnoc_req_sgl_flt_o   ( ),
+    .vnoc_req_rdy_i       ( 'h0 ), // zeros
+    .vnoc_rsp_val_i       ( 'h0 ), // zeros
+    .vnoc_rsp_dat_i       ( 'h0 ), // zeros
+    .vnoc_rsp_hdr_i       ( 'h0 ), // zeros
+    .vnoc_rsp_rdy_o       ( )
 );
 `endif // `ifdef PITON_NONCACH_MEM 
 
@@ -1383,81 +1380,92 @@ assign init_calib_complete_out  = init_calib_complete & ~ui_clk_syn_rst_delayed;
 //localparam MEM_BASE_UNALIGN = `AXI4_ADDR_WIDTH'h80000000;
 localparam MEM_BASE_UNALIGN = '0;
 
-memtile_top memtile_top_inst (
-    .clk_i                ( ui_clk               ),
-    .resetn_i             ( ~noc_axi4_bridge_rst ),
-    // memory crossbar master interface -- AXI4 standard
-    .xbar_mem_aclk_i      ( ui_clk               ),
-    .xbar_mem_aresetn_i   ( ~noc_axi4_bridge_rst ),
+noc_axi4_bridge #(
+  `ifdef PITON_ARIANE
+    .SWAP_ENDIANESS (1),
+  `elsif PITON_LAGARTO
+    .SWAP_ENDIANESS (1),
+  `endif
+  `ifdef PITON_FPGA_MC_HBM
+    .AXI4_DAT_WIDTH_USED (HBM_WIDTH),
+    .ADDR_SWAP_LBITS(HBM_MCS_LOG2),
+    .ADDR_SWAP_MSB  (HBM_SIZE_LOG2),
+    .ADDR_SWAP_LSB  (HBM_MCS_ADDR),
+  `else
+    .OUTSTAND_QUEUE_BRAM (0), // speed-up of the bridge if working at DDR clock
+  `endif
+    .ADDR_OFFSET(MEM_BASE_UNALIGN),
+    .NUM_REQ_OUTSTANDING_LOG2 ($clog2(`PITON_NUM_TILES * 4))
+    // .NUM_REQ_MSHRID_LBIT (`L15_MSHR_ID_WIDTH),
+    // .NUM_REQ_MSHRID_BITS (`L15_THREADID_WIDTH),
+    // .NUM_REQ_YTHREADS (`PITON_Y_TILES),
+    // .NUM_REQ_XTHREADS (`PITON_X_TILES)
+)
+ noc_axi4_bridge  (
+    .clk                (ui_clk                    ),  
+    .rst_n              (~noc_axi4_bridge_rst      ), 
+    .uart_boot_en       (uart_boot_en              ),
+    .phy_init_done      (noc_axi4_bridge_init_done ),
+    .axi_id_deadlock    (mc_axi_deadlock           ),
 
-    .xbar_mem_arid_o      ( core_axi_arid        ),
-    .xbar_mem_araddr_o    ( core_axi_araddr      ),
-    .xbar_mem_arlen_o     ( core_axi_arlen       ),
-    .xbar_mem_arsize_o    ( core_axi_arsize      ),
-    .xbar_mem_arburst_o   ( core_axi_arburst     ),
-    .xbar_mem_arlock_o    ( core_axi_arlock      ),
-    .xbar_mem_arcache_o   ( core_axi_arcache     ),
-    .xbar_mem_arprot_o    ( core_axi_arprot      ),
-    .xbar_mem_arqos_o     ( core_axi_arqos       ),
-    .xbar_mem_arregion_o  ( core_axi_arregion    ),
-    .xbar_mem_aruser_o    ( core_axi_aruser      ),
-    .xbar_mem_arvalid_o   ( core_axi_arvalid     ),
-    .xbar_mem_arready_i   ( core_axi_arready     ),
+    .src_bridge_vr_noc2_val(fifo_trans_val),
+    .src_bridge_vr_noc2_dat(fifo_trans_data),
+    .src_bridge_vr_noc2_rdy(fifo_trans_rdy),
 
-    .xbar_mem_awid_o      ( core_axi_awid        ),
-    .xbar_mem_awaddr_o    ( core_axi_awaddr      ),
-    .xbar_mem_awlen_o     ( core_axi_awlen       ),
-    .xbar_mem_awsize_o    ( core_axi_awsize      ),
-    .xbar_mem_awburst_o   ( core_axi_awburst     ),
-    .xbar_mem_awlock_o    ( core_axi_awlock      ),
-    .xbar_mem_awcache_o   ( core_axi_awcache     ),
-    .xbar_mem_awprot_o    ( core_axi_awprot      ),
-    .xbar_mem_awqos_o     ( core_axi_awqos       ),
-    .xbar_mem_awregion_o  ( core_axi_awregion    ),
-    .xbar_mem_awuser_o    ( core_axi_awuser      ),
-    .xbar_mem_awvalid_o   ( core_axi_awvalid     ),
-    .xbar_mem_awready_i   ( core_axi_awready     ),
+    .bridge_dst_vr_noc3_val(trans_fifo_val),
+    .bridge_dst_vr_noc3_dat(trans_fifo_data),
+    .bridge_dst_vr_noc3_rdy(trans_fifo_rdy),
 
-    .xbar_mem_wid_o       ( core_axi_wid         ),
-    .xbar_mem_wdata_o     ( core_axi_wdata       ),
-    .xbar_mem_wstrb_o     ( core_axi_wstrb       ),
-    .xbar_mem_wlast_o     ( core_axi_wlast       ),
-    .xbar_mem_wuser_o     ( core_axi_wuser       ),
-    .xbar_mem_wvalid_o    ( core_axi_wvalid      ),
-    .xbar_mem_wready_i    ( core_axi_wready      ),
+    .m_axi_awid(core_axi_awid),
+    .m_axi_awaddr(core_axi_awaddr),
+    .m_axi_awlen(core_axi_awlen),
+    .m_axi_awsize(core_axi_awsize),
+    .m_axi_awburst(core_axi_awburst),
+    .m_axi_awlock(core_axi_awlock),
+    .m_axi_awcache(core_axi_awcache),
+    .m_axi_awprot(core_axi_awprot),
+    .m_axi_awqos(core_axi_awqos),
+    .m_axi_awregion(core_axi_awregion),
+    .m_axi_awuser(core_axi_awuser),
+    .m_axi_awvalid(core_axi_awvalid),
+    .m_axi_awready(core_axi_awready),
 
-    .xbar_mem_rid_i       ( core_axi_rid         ),
-    .xbar_mem_rdata_i     ( core_axi_rdata       ),
-    .xbar_mem_rresp_i     ( core_axi_rresp       ),
-    .xbar_mem_rlast_i     ( core_axi_rlast       ),
-    .xbar_mem_ruser_i     ( core_axi_ruser       ),
-    .xbar_mem_rvalid_i    ( core_axi_rvalid      ),
-    .xbar_mem_rready_o    ( core_axi_rready      ),
+    .m_axi_wid(core_axi_wid),
+    .m_axi_wdata(core_axi_wdata),
+    .m_axi_wstrb(core_axi_wstrb),
+    .m_axi_wlast(core_axi_wlast),
+    .m_axi_wuser(core_axi_wuser),
+    .m_axi_wvalid(core_axi_wvalid),
+    .m_axi_wready(core_axi_wready),
 
-    .xbar_mem_bid_i       ( core_axi_bid         ),
-    .xbar_mem_bresp_i     ( core_axi_bresp       ),
-    .xbar_mem_buser_i     ( core_axi_buser       ),
-    .xbar_mem_bvalid_i    ( core_axi_bvalid      ),
-    .xbar_mem_bready_o    ( core_axi_bready      ),
+    .m_axi_bid(core_axi_bid),
+    .m_axi_bresp(core_axi_bresp),
+    .m_axi_buser(core_axi_buser),
+    .m_axi_bvalid(core_axi_bvalid),
+    .m_axi_bready(core_axi_bready),
 
-    // cNoC (compute NoC) interface -- OpenPiton NoC interface
-    .cnoc_req_val_i       ( fifo_trans_val       ),
-    .cnoc_req_dat_i       ( fifo_trans_data      ),
-    .cnoc_req_rdy_o       ( fifo_trans_rdy       ),
-    .cnoc_rsp_val_o       ( trans_fifo_val       ),
-    .cnoc_rsp_dat_o       ( trans_fifo_data      ),
-    .cnoc_rsp_rdy_i       ( trans_fifo_rdy       ),
+    .m_axi_arid(core_axi_arid),
+    .m_axi_araddr(core_axi_araddr),
+    .m_axi_arlen(core_axi_arlen),
+    .m_axi_arsize(core_axi_arsize),
+    .m_axi_arburst(core_axi_arburst),
+    .m_axi_arlock(core_axi_arlock),
+    .m_axi_arcache(core_axi_arcache),
+    .m_axi_arprot(core_axi_arprot),
+    .m_axi_arqos(core_axi_arqos),
+    .m_axi_arregion(core_axi_arregion),
+    .m_axi_aruser(core_axi_aruser),
+    .m_axi_arvalid(core_axi_arvalid),
+    .m_axi_arready(core_axi_arready),
 
-    // vNoC (vector data NoC) interface -- ProNoC interface
-    .vnoc_req_val_o       ( ),
-    .vnoc_req_dat_o       ( ),
-    .vnoc_req_hdr_o       ( ),
-    .vnoc_req_sgl_flt_o   ( ),
-    .vnoc_req_rdy_i       ( 'h0 ), // zeros
-    .vnoc_rsp_val_i       ( 'h0 ), // zeros
-    .vnoc_rsp_dat_i       ( 'h0 ), // zeros
-    .vnoc_rsp_hdr_i       ( 'h0 ), // zeros
-    .vnoc_rsp_rdy_o       ( )
+    .m_axi_rid(core_axi_rid),
+    .m_axi_rdata(core_axi_rdata),
+    .m_axi_rresp(core_axi_rresp),
+    .m_axi_rlast(core_axi_rlast),
+    .m_axi_ruser(core_axi_ruser),
+    .m_axi_rvalid(core_axi_rvalid),
+    .m_axi_rready(core_axi_rready)
+
 );
 
 
