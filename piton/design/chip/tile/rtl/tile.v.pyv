@@ -267,13 +267,13 @@ print(s)
 `ifdef PITON_MEMTILE_ENABLE
     , // VNOC interface
     input                                vnoc_req_val_i,
-    input        [VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_i,
-    input     [VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_i,
+    input       [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_i,
+    input    [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_i,
     input                                vnoc_req_sgl_flt_i,
     output                               vnoc_req_rdy_o,
     output                               vnoc_rsp_val_o,
-    output       [VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_o,
-    output    [VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_o,
+    output      [`VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_o,
+    output   [`VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_o,
     input                                vnoc_rsp_rdy_i
 `endif
 );

@@ -1259,13 +1259,13 @@ wire                               m_axi_bready;
 
 `ifdef PITON_MEMTILE_ENABLE
 wire                               vnoc_req_val;
-wire       [VNOC_DATA_WIDTH - 1:0] vnoc_req_dat;
-wire    [VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr;
+wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat;
+wire   [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr;
 wire                               vnoc_req_sgl_flt;
 wire                               vnoc_req_rdy;
 wire                               vnoc_rsp_val;
-wire       [VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat;
-wire    [VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr;
+wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat;
+wire   [`VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr;
 wire                               vnoc_rsp_rdy;
 `endif
 
@@ -1403,6 +1403,7 @@ chip chip(
 
 `ifdef PITON_MEMTILE_ENABLE
     // vNoC (vector data NoC) interface -- ProNoC interface
+    ,
     .vnoc_req_val_i     ( vnoc_req_val     ),
     .vnoc_req_dat_i     ( vnoc_req_dat     ),
     .vnoc_req_hdr_i     ( vnoc_req_hdr     ),
@@ -1411,7 +1412,7 @@ chip chip(
     .vnoc_rsp_val_o     ( vnoc_rsp_val     ),
     .vnoc_rsp_dat_o     ( vnoc_rsp_dat     ),
     .vnoc_rsp_hdr_o     ( vnoc_rsp_hdr     ),
-    .vnoc_rsp_rdy_i     ( vnoc_rsp_rdy     ),
+    .vnoc_rsp_rdy_i     ( vnoc_rsp_rdy     )
 `endif
 
 `ifdef PITON_ARIANE

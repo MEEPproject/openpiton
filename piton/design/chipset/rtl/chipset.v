@@ -650,15 +650,15 @@ module chipset(
 `endif // endif PITONSYS_NO_MC
 
 `ifdef PITON_MEMTILE_ENABLE
-    output logic                               vnoc_req_val_o,
-    output logic       [VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,
-    output logic    [VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_o,
-    output logic                               vnoc_req_sgl_flt_o,
-    input  logic                               vnoc_req_rdy_i,
-    input  logic                               vnoc_rsp_val_i,
-    input  logic       [VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_i,
-    input  logic    [VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_i,
-    output logic                               vnoc_rsp_rdy_o,
+    output wire                                 vnoc_req_val_o,
+    output wire        [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,
+    output wire     [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_o,
+    output wire                                 vnoc_req_sgl_flt_o,
+    input  wire                                 vnoc_req_rdy_i,
+    input  wire                                 vnoc_rsp_val_i,
+    input  wire        [`VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_i,
+    input  wire     [`VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_i,
+    output wire                                 vnoc_rsp_rdy_o,
 `endif
 
 `ifdef PITONSYS_IOCTRL
