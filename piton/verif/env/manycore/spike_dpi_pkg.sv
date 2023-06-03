@@ -4,23 +4,24 @@ package spike_dpi_pkg;
 
     import EPI_pkg::*;
 
-localparam MAX_VLEN = 1024;
+localparam MAX_VLEN = EPI_pkg::MAX_VLEN;
 localparam MAX_64BIT_BLOCKS = MAX_VLEN/64;
 
 // Spike data
 typedef logic [DATA_PATH_WIDTH-1:0] vec_operand_t [MAX_VLEN/MIN_SEW-1:0];
+typedef longint unsigned vec_els_t [0:MAX_64BIT_BLOCKS-1];
 
 // This struct contains 4 vector registers:
 //
 
 typedef struct
 {
-    longint unsigned old_vd [MAX_64BIT_BLOCKS-1:0];
-    longint unsigned vd     [MAX_64BIT_BLOCKS-1:0];
-    longint unsigned vs1    [MAX_64BIT_BLOCKS-1:0];
-    longint unsigned vs2    [MAX_64BIT_BLOCKS-1:0];
-    longint unsigned vs3    [MAX_64BIT_BLOCKS-1:0];
-    longint unsigned vmask  [MAX_64BIT_BLOCKS-1:0];
+    vec_els_t old_vd;
+    vec_els_t vd;
+    vec_els_t vs1;
+    vec_els_t vs2;
+    vec_els_t vs3;
+    vec_els_t vmask;
 } vector_operands_t;
 
 typedef struct
@@ -59,8 +60,8 @@ typedef struct
     int unsigned vlen;
     int unsigned elen;
     csrs_t csrs;
-    vector_operands_t vector_operands;
-    formatted_vector_operands_t formatted_vector_operands;
+    // vector_operands_t vector_operands;
+    // formatted_vector_operands_t formatted_vector_operands;
 } core_info_t;
 
 typedef struct
@@ -81,7 +82,7 @@ typedef struct
 } core_commit_info_t;
 
 // DPI function calls from spike/spike_main/spike-dpi.cc
-  import "DPI-C" function void setup(input longint argc, input string argv, input int num_harts);
+  import "DPI-C" function void setup(input longint argc, input string argv);
   import "DPI-C" function void stop_execution();
   import "DPI-C" function void start_execution();
   import "DPI-C" function void step(output core_info_t core_info, input int hart_id);
@@ -95,6 +96,10 @@ typedef struct
   import "DPI-C" function void override_spike_gpr(longint unsigned hart_id, byte reg_dest, longint unsigned reg_data);
   import "DPI-C" function void override_spike_csr(longint unsigned hart_id, int csr_addr, longint unsigned csr_data);
   import "DPI-C" function void override_csr_backdoor(longint unsigned hart_id, int csr_addr, longint unsigned csr_data);
+  import "DPI-C" function void get_src_vreg(input int reg_id, output longint unsigned vreg []);
+  import "DPI-C" function void get_dst_vreg(input int reg_id, output longint unsigned vreg []);
+//   import "DPI-C" function void get_mem_addr(output longint unsigned vreg []);
+//   import "DPI-C" function void get_mem_elem(output longint unsigned vreg []);
 endpackage
 
 `endif
