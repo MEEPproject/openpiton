@@ -458,11 +458,42 @@ for core_id in range(PITON_NUM_TILES) :
                                              .rst            (sys_rst_n),
                                              .commit         (`CORE_{coreid}.lagarto_m20.datapath_inst.commit_valid),
                                              .pc             (`CORE_{coreid}.lagarto_m20.datapath_inst.commit_pc),
-                                             .exe_to_wb_wb   (`CORE_{coreid}.lagarto_m20.datapath_inst.exe_to_wb_wb),
+                                             .wb_stage       (`CORE_{coreid}.lagarto_m20.datapath_inst.exe_to_wb_wb),
                                              .xreg_dest      (`CORE_{coreid}.lagarto_m20.datapath_inst.commit_addr_reg),
                                              .cu_rr_int      (`CORE_{coreid}.lagarto_m20.datapath_inst.cu_rr_int),
                                              .commit_data    (`CORE_{coreid}.lagarto_m20.datapath_inst.commit_data),
                                              .excep          (`CORE_{coreid}.lagarto_m20.datapath_inst.wb_xcpt),
+                                             .xreg_1         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[1]),
+                                             .xreg_2         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[2]),
+                                             .xreg_3         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[3]),
+                                             .xreg_4         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[4]),
+                                             .xreg_5         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[5]),
+                                             .xreg_6         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[6]),
+                                             .xreg_7         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[7]),
+                                             .xreg_8         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[8]),
+                                             .xreg_9         (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[9]),
+                                             .xreg_10        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[10]),
+                                             .xreg_11        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[11]),
+                                             .xreg_12        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[12]),
+                                             .xreg_13        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[13]),
+                                             .xreg_14        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[14]),
+                                             .xreg_15        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[15]),
+                                             .xreg_16        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[16]),
+                                             .xreg_17        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[17]),
+                                             .xreg_18        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[18]),
+                                             .xreg_19        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[19]),
+                                             .xreg_20        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[20]),
+                                             .xreg_21        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[21]),
+                                             .xreg_22        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[22]),
+                                             .xreg_23        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[23]),
+                                             .xreg_24        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[24]),
+                                             .xreg_25        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[25]),
+                                             .xreg_26        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[26]),
+                                             .xreg_27        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[27]),
+                                             .xreg_28        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[28]),
+                                             .xreg_29        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[29]),
+                                             .xreg_30        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[30]),
+                                             .xreg_31        (`CORE_{coreid}.lagarto_m20.datapath_inst.rr_stage_inst.registers[31]),
                                              .csr_excep      (`CORE_{coreid}.i_csr_regfile.csr_exception_o),
                                              .csr_cause      (`CORE_{coreid}.i_csr_regfile.csr_xcpt_cause),
                                              .control_intf   (`CORE_{coreid}.lagarto_m20.datapath_inst.control_int),
@@ -473,9 +504,12 @@ for core_id in range(PITON_NUM_TILES) :
 `endif
                                              .hart_id        (`CORE_{coreid}.hart_id_i),
                                              .ref_hart_id    (64'd{coreid}),
-                                             .csr_mip        (`CORE_{coreid}.i_csr_regfile.mip_q));
+                                             .csr_mip        (`CORE_{coreid}.i_csr_regfile.mip_q),
+                                             .csr_vsew       (`CORE_{coreid}.i_csr_regfile.csr_vsew),
+                                             .csr_vl         (`CORE_{coreid}.i_csr_regfile.csr_vl));
     """.format(coreid = core_id))
 %>
+
 `endif
 
 // Lagarto coverage instance for ISA coverage
