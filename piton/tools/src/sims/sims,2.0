@@ -417,6 +417,7 @@ push (@{$opt{config_cpp_args}}, "-DALVEO280")       if (($opt{board}) and ($opt{
 push (@{$opt{config_cpp_args}}, "-DUART_BOOT")      if ($opt{uart_dmw}) ;
 push (@{$opt{config_cpp_args}}, "-DETH_CORE")       if ($opt{eth}) ;
 push (@{$opt{config_cpp_args}}, "-DHBM_DEF")        if ($opt{hbm}) ;
+push (@{$opt{config_cpp_args}}, "-DFLIST_VNOC")     if (($opt{sa_hevc_enable}) or ($opt{sa_nn_enable}) or ($opt{vpu_enable})) ;
 
 push (@{$opt{config_cpp_args}}, "-DFLIST_PRONOC")  if ($opt{pronoc}) ;
 push (@{$opt{config_cpp_args}}, "-DFLIST_COVERAGE")  if (($opt{cov}) or ($opt{cosim})) ;
