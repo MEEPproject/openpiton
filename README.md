@@ -102,9 +102,9 @@ Compiling and running RISC-V Tests with Lagarto in OpenPiton
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB
     sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 rv64ui-p-addi.S -lagarto -precompiled
 
-Compiling and running RISC-V Tests with Lagarto in OpenPiton with cosimulation and signature generator.
+Compiling and running RISC-V Tests with Lagarto in OpenPiton with cosimulation and signature generator. Currently we support cosimulation for VPU 2, 4 and 8 lanes. For cosimulation AND coverage, we support all lanes.
 
-    sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -vpu_enable -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -config_rtl=OPENPITON_LAGARTO_COMMIT_LOG -cosim
+    sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -vpu_enable -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -config_rtl=OPENPITON_LAGARTO_COMMIT_LOG -cosim -config_rtl=VPU_2_LANES
     sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 rv64ui-p-addi.S -lagarto -precompiled -cosim
 
 Compiling and running RISC-V Tests with Lagarto in OpenPiton with coverage
@@ -112,7 +112,7 @@ Compiling and running RISC-V Tests with Lagarto in OpenPiton with coverage
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -cov
     sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 rv64ui-p-addi.S -lagarto -precompiled -cov
 
-Compiling and running RISC-V Tests with Lagarto in OpenPiton. Default number of lanes=2.
+Compiling and running RISC-V Tests with Lagarto in OpenPiton. Default number of lanes=16.
 
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -vpu_enable -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB
     sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 vadd_8.S -lagarto -precompiled
