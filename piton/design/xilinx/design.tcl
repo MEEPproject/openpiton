@@ -87,7 +87,7 @@ if {($::env(PITON_SA_ENABLE) != "0") || ($::env(VPU_ENABLE) != "0")} {
     puts "Add VNoC RTL files"
 }
 
-if { $::env(MEMTILE_USE_RTL) != "0" } {
+if { $::env(PITON_MEMTILE_ENABLE) != "0" } {
     source $MEMTILE_ROOT/parseFlistMT.tcl
     set CORE_RTL_FILES [concat ${CORE_RTL_FILES} ${MEMTILE_RTL_FILES}]
     puts "Add Memtile RTL files"
