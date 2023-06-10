@@ -259,6 +259,19 @@ module mc_top (
     output                               ncmem_axi_bready,
     `endif // NON_CACHE_MEM
 
+`ifdef PITON_MEMTILE_ENABLE
+    // vNoC (vector data NoC) interface -- ProNoC interface
+    output wire                               vnoc_req_val_o,
+    output wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,
+    output wire   [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_o,
+    output wire                               vnoc_req_sgl_flt_o,
+    input  wire                               vnoc_req_rdy_i,
+    input  wire                               vnoc_rsp_val_i,
+    input  wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_i,
+    input  wire   [`VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_i,
+    output wire                               vnoc_rsp_rdy_o,
+`endif
+
     `ifdef PITON_EXTRA_MEMS
       // vectorized multi-MC AXI bus
       output [`PITON_EXTRA_MEMS * `AXI4_ID_WIDTH     -1:0]   mcx_axi_awid,
@@ -687,15 +700,15 @@ memtile_top memtile_top_inst (
     .cnoc_rsp_rdy_i       ( ncmem_flit_out_rdy   ),
 
     // vNoC (vector data NoC) interface -- ProNoC interface
-    .vnoc_req_val_o       ( ),
-    .vnoc_req_dat_o       ( ),
-    .vnoc_req_hdr_o       ( ),
-    .vnoc_req_sgl_flt_o   ( ),
-    .vnoc_req_rdy_i       ( 'h0 ), // zeros
-    .vnoc_rsp_val_i       ( 'h0 ), // zeros
-    .vnoc_rsp_dat_i       ( 'h0 ), // zeros
-    .vnoc_rsp_hdr_i       ( 'h0 ), // zeros
-    .vnoc_rsp_rdy_o       ( )
+    .vnoc_req_val_o       ( vnoc_req_val_o       ),
+    .vnoc_req_dat_o       ( vnoc_req_dat_o       ),
+    .vnoc_req_hdr_o       ( vnoc_req_hdr_o       ),
+    .vnoc_req_sgl_flt_o   ( vnoc_req_sgl_flt_o   ),
+    .vnoc_req_rdy_i       ( vnoc_req_rdy_i       ),
+    .vnoc_rsp_val_i       ( vnoc_rsp_val_i       ),
+    .vnoc_rsp_dat_i       ( vnoc_rsp_dat_i       ),
+    .vnoc_rsp_hdr_i       ( vnoc_rsp_hdr_i       ),
+    .vnoc_rsp_rdy_o       ( vnoc_rsp_rdy_o       )
 );
 `endif // `ifdef PITON_NONCACH_MEM 
 

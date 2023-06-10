@@ -1418,6 +1418,19 @@ credit_to_valrdy noc3_xbar_to_%s(
 				    .ncmem_axi_wvalid(ncmem_axi_wvalid),
 				    `endif //`ifdef PITON_NONCACH_MEM
 
+                    `ifdef PITON_MEMTILE_ENABLE
+                    // vNoC (vector data NoC) interface -- ProNoC interface
+                    .vnoc_req_val_o       ( vnoc_req_val_o       ),
+                    .vnoc_req_dat_o       ( vnoc_req_dat_o       ),
+                    .vnoc_req_hdr_o       ( vnoc_req_hdr_o       ),
+                    .vnoc_req_sgl_flt_o   ( vnoc_req_sgl_flt_o   ),
+                    .vnoc_req_rdy_i       ( vnoc_req_rdy_i       ),
+                    .vnoc_rsp_val_i       ( vnoc_rsp_val_i       ),
+                    .vnoc_rsp_dat_i       ( vnoc_rsp_dat_i       ),
+                    .vnoc_rsp_hdr_i       ( vnoc_rsp_hdr_i       ),
+                    .vnoc_rsp_rdy_o       ( vnoc_rsp_rdy_o       ),
+                    `endif // PITON_MEMTILE_ENABLE
+
             `ifdef PITON_EXTRA_MEMS
              // vectorized multi-MC AXI bus
             .mcx_axi_awid      (mcx_axi_awid     ),

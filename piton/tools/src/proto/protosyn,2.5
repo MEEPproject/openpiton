@@ -652,6 +652,7 @@ def makeDefList(options):
         defines.append("PITON_FPGA_MC_DDR3")
         defines.append("MEMTILE_USE_RTL")
         defines.append("PITON_MEMTILE_ENABLE")
+        defines.append("PITON_ACC_ENABLE")
         os.environ['PITON_MEMTILE_ENABLE'] = "1"
 
     if (options.hbm == True):

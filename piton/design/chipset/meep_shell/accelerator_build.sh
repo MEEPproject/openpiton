@@ -137,7 +137,7 @@ function ea_flavours() {
             XTILES=1
             YTILES=1
             NTILES=$(($XTILES * $YTILES))
-            PROTO_OPTIONS+=" --sa_nn_enable --sa_hevc_enable --vpu_enable --vlanes $VLANES --memtile"
+            PROTO_OPTIONS+=" --sa_nn_enable --sa_hevc_enable --vpu_enable --vlanes $VLANES --memtile "
             echo -e ${BP}"    Selected build configuration: Lagarto Hun 1x1  " ${NC}
             ;;
         acme_ea_9h8m)
@@ -223,7 +223,7 @@ function ea_options() {
 # The first one must be the EA, second one will be PROTOSYN_FLAG
 
 function ea_selected() {
-declare -A map=( [acme_ea_4a]=1 [acme_ea_1h16v]=1 [acme_ea_4h2v]=1 [acme_ea_1h2v]=1 [acme_ea_1h2g]=1 [acme_ea_1h]=1 [acme_ea_9h8m]=1 [acme_ea_4h2m]=1 [acme_ea_4h2v2m]=1 [acme_ea_16h]=1 )
+declare -A map=( [acme_ea_4a]=1 [acme_ea_1h16v]=1 [acme_ea_4h2v]=1 [acme_ea_1h2v]=1 [acme_ea_1h2g]=1 [acme_ea_1h]=1 [acme_ea_1h2v1mt]=1 [acme_ea_9h8m]=1 [acme_ea_4h2m]=1 [acme_ea_4h2v2m]=1 [acme_ea_16h]=1 )
 ea_is=$1
 if [[ ${map["$ea_is"]} ]] ; then
     echo "EA_selection: $ea_is"
