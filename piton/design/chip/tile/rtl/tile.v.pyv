@@ -1584,7 +1584,7 @@ endgenerate
         .rtap_srams_bist_data (rtap_srams_bist_data)
     );
 
-    noc3_router noc3_router_impl (
+    noc3_demux noc3_demux_impl (
         .clk_i        ( clk_gated                   ),
         .rst_ni       ( rst_n_f                     ),
         .noc3_data_i  ( buffer_processor_data_noc3  ),  // input
