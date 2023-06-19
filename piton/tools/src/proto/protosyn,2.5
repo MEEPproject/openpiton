@@ -58,7 +58,7 @@ FLOW_STEP_OPTIONS = ["project", "impl"]
 def usage():
     print(file=sys.stderr)
     print("Usage:\nprotosyn -b <board_type> [-d <design>] [--bram-test <test_name>]", end=' ', file=sys.stderr)
-    print("[--from <FPGA flow step>] [--to <FPGA flow step>] [--no-ddr] [--uart-dmw ddr] [--eth] [--ethport] [--sa_nn_enable] [--sa_hevc_enable] [--vpu_enable] [--pronoc] [--oled <string>]", file=sys.stderr)
+    print("[--from <FPGA flow step>] [--to <FPGA flow step>] [--no-ddr] [--uart-dmw ddr] [--eth] [--ethport] [--sa_nn_enable] [--sa_hevc_enable] [--vpu_enable] [--pronoc] [--oled <string>] [--memtile]", file=sys.stderr)
     print(file=sys.stderr)
     print("       -b, --board  <board_type>", file=sys.stderr)
     print("              Name of a supported Xilinx's development board. Available options are:", file=sys.stderr)
@@ -173,6 +173,8 @@ def usage():
     print("              Implement design with NN Systolic Arrays", file=sys.stderr) 
     print("         --sa_hevc_enable", file.sys.stderr)
     print("              Implement design with HEVC Systolic Arrays", file=sys.stderr) 
+    print("         --memtile", file.sys.stderr)
+    print("              Implement design with Memory Tile", file=sys.stderr)
     print("         --vpu_enable", file.sys.stderr)
     print("              Implement design with VPU", file=sys.stderr)
     print("\n       --pronoc", file=sys.stderr)
@@ -576,6 +578,7 @@ def setParserOptions(parser):
     parser.add_option("--eth", dest="eth", action="store_true", default=False)
     parser.add_option("--ethport", dest="ethport", action="store", default=0)
     parser.add_option("--sa_nn_enable", dest="sa_nn_enable", action="store_true", default=False)
+    parser.add_option("--memtile", dest="memtil", action="store_true", default=False)
     parser.add_option("--sa_hevc_enable", dest="sa_hevc_enable", action="store_true", default=False)
     parser.add_option("--vpu_enable", dest="vpu_enable", action="store_true", default=False)
     parser.add_option("--pronoc", dest="pronoc", action="store_true", default=False)
@@ -650,10 +653,6 @@ def makeDefList(options):
         defines.append("PITONSYS_NO_MC")
     else:   # default option
         defines.append("PITON_FPGA_MC_DDR3")
-        defines.append("MEMTILE_USE_RTL")
-        defines.append("PITON_MEMTILE_ENABLE")
-        defines.append("PITON_ACC_ENABLE")
-        os.environ['PITON_MEMTILE_ENABLE'] = "1"
 
     if (options.hbm == True):
         defines.append("PITON_FPGA_MC_HBM")
@@ -1049,6 +1048,13 @@ def main():
     if options.sa_nn_enable or options.sa_hevc_enable or options.vpu_enable:
         defines.append('XBAR_LVRF_ENABLE')
         print_info('setenv XBAR_LVRF_ENABLE')
+
+    # Memory tile
+    os.environ['PITON_MEMTILE_ENABLE'] = "0"
+    if options.memtile:
+        defines.append("MEMTILE_USE_RTL")
+        defines.append("PITON_MEMTILE_ENABLE")
+        os.environ['PITON_MEMTILE_ENABLE'] = "1"
 
     # ProNoC
     os.environ['PITON_PRONOC'] = "0"
