@@ -10,4 +10,4 @@
 	url = ../../../rtl_designs/vas_tile_core.git
 [submodule "piton/design/chipset/meep-memtile"]
 	path = piton/design/chipset/meep-memtile
-	url = ../../../rtl_designs/acme_components/meep-memtile
+	url = ../../../rtl_designs/acme_components/meep-memtile.git
