@@ -1414,7 +1414,10 @@ print(str)
         .req_data_o   ( acc_req_data   ),
         .resp_ready_o ( acc_resp_ready ),
         .resp_valid_i ( acc_resp_valid ),
-        .resp_data_i  ( acc_resp_data  )
+        .resp_data_i  ( acc_resp_data  ),
+
+        .default_coreid_x ( default_coreid_x ),
+        .default_coreid_y ( default_coreid_y )
     );
 
     noc2_arbiter_2input #(
