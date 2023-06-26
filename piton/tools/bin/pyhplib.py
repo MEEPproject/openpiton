@@ -91,11 +91,6 @@ CONFIG_L2_ASSOCIATIVITY = int(os.environ.get('CONFIG_L2_ASSOCIATIVITY', '4'))
 L15_LINE_SIZE = 16
 L2_LINE_SIZE = 64
 
-
-NOC1_WIDTH = int(os.environ.get('NOC1_WIDTH', '64'))
-NOC2_WIDTH = int(os.environ.get('NOC2_WIDTH', '64'))
-NOC3_WIDTH = int(os.environ.get('NOC3_WIDTH', '64'))
-
 #########################################################
 # BRAM configurations
 #########################################################
