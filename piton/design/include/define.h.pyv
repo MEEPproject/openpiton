@@ -74,8 +74,8 @@ if PITON_EXTRA_MEMS > 0:
 `define NOC_OFF_CHIP_NODE_Y `OFF_CHIP_NODE_Y
 
 `define VNOC_DATA_WIDTH     512
-`define VNOC_REQ_HDR_WIDTH  70
-`define VNOC_RSP_HDR_WIDTH  70
+`define VNOC_REQ_HDR_WIDTH  71
+`define VNOC_RSP_HDR_WIDTH  71
 
 // Definitions for noc_axilite_bridge
 `define C_M_AXI_LITE_DATA_WIDTH  `NOC_DATA_WIDTH
