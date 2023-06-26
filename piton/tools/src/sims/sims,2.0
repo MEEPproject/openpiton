@@ -2773,6 +2773,12 @@ sub get_mc_mapping {
                     push (@mc_map,\%h);
                     $edge_idx += 1
 
+                }elsif ($j == 0){
+                    $endp = $endp + $i;
+                    my %h=('id'=> $flatid,'x'=> $i,'y'=> $j,'n'=> 0,'p'=> 'N','endp'=> $endp);
+                    push (@mc_map,\%h);  
+                    $edge_idx += 1
+                
                 }elsif ($j == $piton_Y-1){ #  and i != 0
                     $endp = $endp + $piton_X + $i;
                     my %h=('id'=> $flatid,'x'=> $i,'y'=> $j,'n'=> 0,'p'=> 'S','endp'=> $endp);
@@ -2783,13 +2789,7 @@ sub get_mc_mapping {
                     $endp = $endp + $piton_X + $piton_X + $piton_Y + $j;
                     my %h=('id'=> $flatid,'x'=> $i,'y'=> $j,'n'=> 0,'p'=> 'E','endp'=> $endp);
                     push (@mc_map,\%h);  
-                    $edge_idx += 1
-
-                }elsif ($j == 0){ # and i != PITON_X_TILES-1
-                    $endp = $endp + $i;
-                    my %h=('id'=> $flatid,'x'=> $i,'y'=> $j,'n'=> 0,'p'=> 'N','endp'=> $endp);
-                    push (@mc_map,\%h);  
-                    $edge_idx += 1
+                    $edge_idx += 1                
                 }else{
                     die "Fatal: $flatid is not an edge router\n";
                 }

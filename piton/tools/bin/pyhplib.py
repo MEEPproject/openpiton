@@ -91,6 +91,11 @@ CONFIG_L2_ASSOCIATIVITY = int(os.environ.get('CONFIG_L2_ASSOCIATIVITY', '4'))
 L15_LINE_SIZE = 16
 L2_LINE_SIZE = 64
 
+
+NOC1_WIDTH = int(os.environ.get('NOC1_WIDTH', '64'))
+NOC2_WIDTH = int(os.environ.get('NOC2_WIDTH', '64'))
+NOC3_WIDTH = int(os.environ.get('NOC3_WIDTH', '64'))
+
 #########################################################
 # BRAM configurations
 #########################################################
@@ -370,7 +375,11 @@ def get_mc_mapping(piton_X,piton_Y,indices,mc_num,net_conf):
                     endp = endp + piton_X + piton_X + j;
                     mc_map.insert(index,{'id':flatid,'x':i,'y':j,'n':0,'p':'W','endp':endp})
                     edge_idx += 1
-
+                elif (j == 0 ): 
+                    endp = endp + i;
+                    mc_map.insert(index,{'id':flatid,'x':i,'y':j,'n':0,'p':'N','endp':endp})
+                    edge_idx += 1           
+               
                 elif (j == piton_Y-1): #  and i != 0
                     endp = endp + piton_X + i;
                     mc_map.insert(index,{'id':flatid,'x':i,'y':j,'n':0,'p':'S','endp':endp})
@@ -379,12 +388,7 @@ def get_mc_mapping(piton_X,piton_Y,indices,mc_num,net_conf):
                 elif (i == piton_X-1): # and j != PITON_Y_TILES-1
                     endp = endp + piton_X + piton_X + piton_Y + j;
                     mc_map.insert(index,{'id':flatid,'x':i,'y':j,'n':0,'p':'E','endp':endp})
-                    edge_idx += 1
-
-                elif (j == 0): # and i != PITON_X_TILES-1
-                    endp = endp + i;
-                    mc_map.insert(index,{'id':flatid,'x':i,'y':j,'n':0,'p':'N','endp':endp})
-                    edge_idx += 1
+                    edge_idx += 1                
                 else: 
                     sys.stderr.write("Fatal: %s is not an edge router\n" % flatid)    
     return mc_map
