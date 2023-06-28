@@ -181,7 +181,7 @@ module chip(
 `endif
 
 `ifdef PITON_MEMTILE_ENABLE
-    , // VNOC interface
+    , // VNOC interface to/from memtile
     input                                vnoc_req_val_i,
     input       [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_i,
     input    [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_i,
@@ -383,6 +383,79 @@ module chip(
    wire                                         jtag_tiles_ucb_val;
    wire [`UCB_BUS_WIDTH-1:0]                    jtag_tiles_ucb_data;
    wire [127:0]                                 ctap_clk_en_inter; // trin TODO: parameterize this number (63)
+  
+  
+  
+   `ifdef XBAR_LVRF_ENABLE
+
+   logic [`PITON_NUM_TILES-1:0]      lvrf_vnoc_req_val_i;
+   logic [`VNOC_DATA_WIDTH - 1:0]    lvrf_vnoc_req_dat_i [`PITON_NUM_TILES-1:0];
+   logic [`VNOC_REQ_HDR_WIDTH - 1:0] lvrf_vnoc_req_hdr_i [`PITON_NUM_TILES-1:0];
+   logic [`PITON_NUM_TILES-1:0]      lvrf_vnoc_rsp_sgl_flt_o;
+   logic [`PITON_NUM_TILES-1:0]      lvrf_vnoc_req_rdy_o;
+   logic [`PITON_NUM_TILES-1:0]      lvrf_vnoc_rsp_val_o;
+   logic [`VNOC_DATA_WIDTH - 1:0]    lvrf_vnoc_rsp_dat_o [`PITON_NUM_TILES-1:0];
+   logic [`VNOC_RSP_HDR_WIDTH - 1:0] lvrf_vnoc_rsp_hdr_o [`PITON_NUM_TILES-1:0];
+   logic [`PITON_NUM_TILES-1:0]      lvrf_vnoc_rsp_rdy_i;
+
+   import vnoc_pkg::*;
+   //interface to VNOCs
+  
+   vnoc_intfc_t vnoc_intfc_in  [`PITON_Y_TILES-1 : 0][`PITON_X_TILES : 0];
+   wire [`PITON_X_TILES : 0] vnoc_valid_in [`PITON_Y_TILES-1 : 0];
+   wire [`PITON_X_TILES : 0] vnoc_ready_out [`PITON_Y_TILES-1 : 0];
+
+   vnoc_intfc_t vnoc_intfc_out [`PITON_Y_TILES-1 : 0][`PITON_X_TILES : 0];
+   wire [`PITON_X_TILES : 0] vnoc_valid_out [`PITON_Y_TILES-1 : 0];
+   wire [`PITON_X_TILES : 0] vnoc_ready_in  [`PITON_Y_TILES-1 : 0];
+
+   genvar x,y;
+   generate 
+   for(y=0;y<`PITON_Y_TILES;y++) begin : Y_
+      for(x=0;x<`PITON_Y_TILES;x++) begin : X_
+         localparam FLAT_ID =  x + (y * `PITON_X_TILES);
+         assign  lvrf_vnoc_req_val_i [FLAT_ID] = vnoc_valid_out[y][x+1] ;
+         assign  lvrf_vnoc_req_hdr_i [FLAT_ID] = vnoc_intfc_out[y][x+1].vnoc_hdr;
+         assign  lvrf_vnoc_req_dat_i [FLAT_ID] = vnoc_intfc_out[y][x+1].data ;
+         assign  lvrf_vnoc_rsp_rdy_i [FLAT_ID] = vnoc_ready_out[y][x+1];
+
+         assign  vnoc_valid_in[y][x+1]           = lvrf_vnoc_rsp_val_o [FLAT_ID];
+         assign  vnoc_intfc_in[y][x+1].vnoc_hdr  = lvrf_vnoc_rsp_hdr_o [FLAT_ID];
+         assign  vnoc_intfc_in[y][x+1].data      = lvrf_vnoc_rsp_dat_o [FLAT_ID];
+         assign  vnoc_ready_in[y][x+1]           = lvrf_vnoc_req_rdy_o [FLAT_ID];
+         assign  vnoc_intfc_in[y][x+1].single_flit = lvrf_vnoc_rsp_sgl_flt_o [FLAT_ID];
+      end   
+   //connection to memory tiles one per row 
+   /*
+      assign  vnoc_valid_in[y][0]          = vnoc_req_val_i [y];
+      assign  vnoc_intfc_in[y][0].vnoc_hdr = vnoc_req_hdr_i [y];
+      assign  vnoc_intfc_in[y][0].data     = vnoc_req_dat_i [y];
+      assign  vnoc_ready_in[y][0]          = vnoc_rsp_rdy_i [y];
+      assign  vnoc_intfc_in[y][0].single_flit = vnoc_req_sgl_flt_i[y];
+
+      assign  vnoc_rsp_val_o [y]= vnoc_valid_out[y][0];
+      assign  vnoc_rsp_hdr_o [y]= vnoc_intfc_out[y][0].vnoc_hdr;
+      assign  vnoc_rsp_dat_o [y]= vnoc_intfc_out[y][0].data;
+      assign  vnoc_req_rdy_o [y]= vnoc_ready_out[y][0];
+   
+   */
+   end
+   endgenerate
+   //memtile connection 
+   //TODO there should be one memory tile per row but its not yet supported
+   assign  vnoc_valid_in[0][0]          = vnoc_req_val_i ;
+   assign  vnoc_intfc_in[0][0].vnoc_hdr = vnoc_req_hdr_i ;
+   assign  vnoc_intfc_in[0][0].data     = vnoc_req_dat_i ;
+   assign  vnoc_ready_in[0][0]            = vnoc_rsp_rdy_i ;
+   assign  vnoc_intfc_in[0][0].single_flit = vnoc_req_sgl_flt_i;
+
+   assign  vnoc_rsp_val_o = vnoc_valid_out[0][0];
+   assign  vnoc_rsp_hdr_o = vnoc_intfc_out[0][0].vnoc_hdr;
+   assign  vnoc_rsp_dat_o = vnoc_intfc_out[0][0].data;
+   assign  vnoc_req_rdy_o = vnoc_ready_out[0][0]; 
+  
+  `endif
+  
    <%
        # generate wires
        for i in range(PITON_X_TILES):
@@ -1231,16 +1304,16 @@ module chip(
         .irq_i               ( irq_i[_FLAT_ID_*2 +: 2]  ),
         .pmu_sig_o           ( pmu_sig_o[27*_FLAT_ID_+:27]),
     `endif
-    `ifdef PITON_MEMTILE_ENABLE
-       .vnoc_req_val_i       ( vnoc_req_val_i     ),
-       .vnoc_req_dat_i       ( vnoc_req_dat_i     ),
-       .vnoc_req_hdr_i       ( vnoc_req_hdr_i     ),
-       .vnoc_req_sgl_flt_i   ( vnoc_req_sgl_flt_i ),
-       .vnoc_req_rdy_o       ( vnoc_req_rdy_o     ),
-       .vnoc_rsp_val_o       ( vnoc_rsp_val_o     ),
-       .vnoc_rsp_dat_o       ( vnoc_rsp_dat_o     ),
-       .vnoc_rsp_hdr_o       ( vnoc_rsp_hdr_o     ),
-       .vnoc_rsp_rdy_i       ( vnoc_rsp_rdy_i     ),
+    `ifdef XBAR_LVRF_ENABLE
+       .vnoc_req_val_i       ( lvrf_vnoc_req_val_i[_FLAT_ID_]     ),
+       .vnoc_req_dat_i       ( lvrf_vnoc_req_dat_i[_FLAT_ID_]     ),
+       .vnoc_req_hdr_i       ( lvrf_vnoc_req_hdr_i[_FLAT_ID_]     ),
+       .vnoc_rsp_sgl_flt_o   ( lvrf_vnoc_rsp_sgl_flt_o[_FLAT_ID_] ),
+       .vnoc_req_rdy_o       ( lvrf_vnoc_req_rdy_o[_FLAT_ID_]     ),
+       .vnoc_rsp_val_o       ( lvrf_vnoc_rsp_val_o[_FLAT_ID_]     ),
+       .vnoc_rsp_dat_o       ( lvrf_vnoc_rsp_dat_o[_FLAT_ID_]     ),
+       .vnoc_rsp_hdr_o       ( lvrf_vnoc_rsp_hdr_o[_FLAT_ID_]     ),
+       .vnoc_rsp_rdy_i       ( lvrf_vnoc_rsp_rdy_i[_FLAT_ID_]     ),
     `endif
         // ucb from tiles to jtag
         .tile_jtag_ucb_val   ( tile0_jtag_ucb_val      ),
@@ -1476,7 +1549,80 @@ module chip(
     print ("`ifdef PITON_PRONOC");
     print(assign + edge_assign)
     print("`endif")    
+
+
+    for i in range(PITON_Y_TILES):
+      template=r'''
+      vnoc #(
+         .VNOC_ID(IDD),
+         .ENDP_NUM(`PITON_X_TILES+1)
+      )vnoc_inst_IDD(
+
+         //general
+         .clk                (clk_muxed),
+         .reset              (~rst_n_inter_sync),
+
+         //control interafce
+         .vnoc_intfc_in  ( vnoc_intfc_in  [IDD] ),
+         .valid_in       ( vnoc_valid_in  [IDD] ),
+         .ready_out      ( vnoc_ready_out [IDD] ),
+
+         .vnoc_intfc_out ( vnoc_intfc_out [IDD] ),
+         .valid_out      ( vnoc_valid_out [IDD] ),
+         .ready_in       ( vnoc_ready_in  [IDD] )
+      );
+   ''''
+      vnoc = template.replace("IDD", repr(i));
+      print(vnoc)
+
+
+
+
+
 %>
+
+
+generate
+for (x =0; x<= `PITON_X_TILES; x++) begin : XX_
+   localparam NAME = (x==0)? "MEM_TILE" : {"RDWR_MNG", $sformatf("%02d", x)};
+   localparam DIR2 = (x==0)? "OUT" : "OUT"; 
+   localparam DIR1 = (x!=0)? "IN" : "IN"; 
+   localparam MAX_PCK_FLIT = 4096;
+
+   vnoc_intfc_monitor #(
+        .DIR (DIR1),
+        .VERBOSITY(1),
+	     .NAME(NAME),
+	.MAX_PCK_SIZ(MAX_PCK_FLIT)
+    )mon1(
+        .vnoc_intfc(vnoc_intfc_out[0][x]),
+        .valid(vnoc_valid_out[0][x]),
+        .ready(vnoc_ready_in[0][x]),
+        .clk(clk_muxed),
+        .reset (~rst_n_inter_sync)
+
+    );
+
+
+    vnoc_intfc_monitor #(
+        .DIR (DIR2),
+        .VERBOSITY(1),
+	     .NAME(NAME),
+	     .MAX_PCK_SIZ(MAX_PCK_FLIT)
+    )mon2(
+        .vnoc_intfc(vnoc_intfc_in[0][x]),
+        .valid(vnoc_valid_in[0][x]),
+        .ready(vnoc_ready_out[0][x]),
+        .clk(clk_muxed),
+        .reset(~rst_n_inter_sync)
+
+    );
+      
+end
+endgenerate
+
+
+
 endmodule
 
 `endif
