@@ -578,7 +578,7 @@ def setParserOptions(parser):
     parser.add_option("--eth", dest="eth", action="store_true", default=False)
     parser.add_option("--ethport", dest="ethport", action="store", default=0)
     parser.add_option("--sa_nn_enable", dest="sa_nn_enable", action="store_true", default=False)
-    parser.add_option("--memtile", dest="memtil", action="store_true", default=False)
+    parser.add_option("--memtile", dest="memtile", action="store_true", default=False)
     parser.add_option("--sa_hevc_enable", dest="sa_hevc_enable", action="store_true", default=False)
     parser.add_option("--vpu_enable", dest="vpu_enable", action="store_true", default=False)
     parser.add_option("--pronoc", dest="pronoc", action="store_true", default=False)
@@ -1052,8 +1052,8 @@ def main():
     # Memory tile
     os.environ['PITON_MEMTILE_ENABLE'] = "0"
     if options.memtile:
-        defines.append("MEMTILE_USE_RTL")
-        defines.append("PITON_MEMTILE_ENABLE")
+        defines.append('MEMTILE_USE_RTL')
+        defines.append('PITON_MEMTILE_ENABLE')
         os.environ['PITON_MEMTILE_ENABLE'] = "1"
 
     # ProNoC

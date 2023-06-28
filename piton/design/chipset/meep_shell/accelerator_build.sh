@@ -136,8 +136,9 @@ function ea_flavours() {
             CORE=lagarto
             XTILES=1
             YTILES=1
+            VLANES=2
             NTILES=$(($XTILES * $YTILES))
-            PROTO_OPTIONS+=" --sa_nn_enable --sa_hevc_enable --vpu_enable --vlanes $VLANES --memtile "
+            PROTO_OPTIONS+=" --memtile --sa_nn_enable --sa_hevc_enable --vpu_enable --vlanes $VLANES "
             echo -e ${BP}"    Selected build configuration: Lagarto Hun 1x1  " ${NC}
             ;;
         acme_ea_9h8m)
