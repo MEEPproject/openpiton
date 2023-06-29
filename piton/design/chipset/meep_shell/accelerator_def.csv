@@ -1,4 +1,4 @@
-EANAME=acme
+EANAME=Ariane
 PCIE,yes,pcie_axi,,PCIE_CLK,pcie_clk,pcie_rstn,dma,0,,02
 DDR4,no,mem_axi
 HBM,yes,mem_axi,AXI3-256,CLK0,0x0,mem_calib_complete,00
