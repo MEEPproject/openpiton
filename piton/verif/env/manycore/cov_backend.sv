@@ -520,9 +520,9 @@ module cov_backend (
         load_address_misaligned: coverpoint(load_misaligned_exception) iff (rsn_i) {ignore_bins ignore = {0};}
         store_address_misaligned: coverpoint(store_misaligned_exception) iff (rsn_i) {ignore_bins ignore = {0};}
 
-        /* --- Access Fault ---*/
-        lsu_pa_outside_pa_boundary_wo_translation: coverpoint((resp_dcache_cpu_i.addr > ({32{1'b1}}-1)) && (from_rr_i.instr.unit == UNIT_MEM)) iff (rsn_i && !en_ld_st_translation_i) {ignore_bins ignore = {0};} // access fault according to orignal access type should be reported by RTL
-        lsu_pa_outside_pa_boundary_wt_translation: coverpoint((resp_dcache_cpu_i.addr > ({32{1'b1}}-1)) && (from_rr_i.instr.unit == UNIT_MEM)) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // access fault according to orignal access type should be reported by RTL
+        /* --- Access Fault: Not supported in Lagarto Hun right now ---*/
+        // lsu_pa_outside_pa_boundary_wo_translation: coverpoint((resp_dcache_cpu_i.addr > ({32{1'b1}}-1)) && (from_rr_i.instr.unit == UNIT_MEM)) iff (rsn_i && !en_ld_st_translation_i) {ignore_bins ignore = {0};} // access fault according to orignal access type should be reported by RTL
+        // lsu_pa_outside_pa_boundary_wt_translation: coverpoint((resp_dcache_cpu_i.addr > ({32{1'b1}}-1)) && (from_rr_i.instr.unit == UNIT_MEM)) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // access fault according to orignal access type should be reported by RTL
         
         /* --- RISCV standard interrupts ---*/
         interrupts_valid: coverpoint(riscv_intrpts_valid) iff (rsn_i) {
@@ -558,7 +558,7 @@ module cov_backend (
         lsu_2MiB_page_allocation: coverpoint(|entry_has_2mb_page) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}
         lsu_1GiB_page_allocation: coverpoint(|entry_has_1gb_page) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}
         dtlb_has_all_page_sizes: coverpoint(dtlb_has_all_page_size) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}
-        dtlb_multi_hit: coverpoint($countones(dtlb_lu_hit) > 1) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // We can hit if there is a base page lying inside a super-page, both pages are in different DTLB entries, and we try to access shared region. Software bug, RTL should be able to handle it???
+        // dtlb_multi_hit: coverpoint($countones(dtlb_lu_hit) > 1) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // We can hit if there is a base page lying inside a super-page, both pages are in different DTLB entries, and we try to access shared region. Software bug, RTL should be able to handle it???
         access_nc_addr_dc_disable: coverpoint((|paddr_is_nc) && ~dcache_en_i) iff (rsn_i) {ignore_bins ignore = {0};} // fetch from non cacheable addr due to dcache being disabled from a custom CSR
         access_nc_addr_pma: coverpoint((|paddr_is_nc) && dcache_en_i) iff (rsn_i) {ignore_bins ignore = {0};} // fetch from non cacheable addr : region has non cacheable physical memory attribute (PMA). dcache is enabled though!
         // PMU : pipeline stages stall
@@ -642,8 +642,3 @@ module cov_backend (
     end
 
 endmodule
-
-// bind lagarto_m20 cov_backend coverage_backend (
-//     .clk_i(core_ref_clk),
-//     .rsn_i(sys_rst_n)
-// );
