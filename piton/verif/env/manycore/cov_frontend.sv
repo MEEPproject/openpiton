@@ -5,8 +5,8 @@
 * Description   : To code uArchitectural functional coverpoints and cover properties
                 : for frontend of the core (fetch, decode, read register stages)
 * ------------------------------------------------------------*/
-
 import cov_core_defs::*;
+
 module cov_frontend (
     input logic                                 clk_i,
     input logic                                 rsn_i,
@@ -133,7 +133,7 @@ module cov_frontend (
     cover property(``sig1``_collides_``sig2``_``cycle_diff``_p);
 
     // macro to check whether two events follow each other within a given clock cycles window
-    `define event2_follows_event1(sig1, sig2, window) \
+    `define event2_follows_event1_fe(sig1, sig2, window) \
     property ``sig2``_follows_``sig1``_``window``_p; \
         @(negedge clk_i) disable iff(~rsn_i && ~en_translation_i) \
         ``sig1`` |=> ((!$rose(``sig1``)) throughout (##[0:``window``] ``sig2``)); \
@@ -445,11 +445,11 @@ module cov_frontend (
 
             begin: ifu_events_following_each_other
                 begin: itlb_hit_followed_by_icache_hit
-                    `event2_follows_event1(itlb_hit, icache_hit, 5)
+                    `event2_follows_event1_fe(itlb_hit, icache_hit, 5)
                 end
 
                 begin: itlb_hit_followed_by_icache_miss
-                    `event2_follows_event1(itlb_hit, icache_miss, 5)
+                    `event2_follows_event1_fe(itlb_hit, icache_miss, 5)
                 end
             end: ifu_events_following_each_other
 
@@ -475,21 +475,21 @@ module cov_frontend (
         ipf_misaligned_superpage_1GB: coverpoint(valid_leaf_pte && ptw_lvl_1 && pte.ppn[17:0] != '0) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // misaligned 1GB superpage translation. leaf PTE.PPN[17:0] bits not zero.
         ipf_misaligned_superpage_2MB: coverpoint(valid_leaf_pte && ptw_lvl_2 && pte.ppn[8:0] != '0) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // misaligned 2MB superpage translation. leaf PTE.PPN[8:0] bits not zero.
         ipf_translation_too_deep: coverpoint(valid_non_leaf_pte && ptw_lvl_3) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Leaf PTE is not found even at the last(3rd) level.
-        /* --- Instruction Access Faults ---*/
-        iaf_too_big_pa_without_translation: coverpoint(too_big_pa && instr_access_fault) iff (rsn_i && !en_translation_i) {ignore_bins ignore = {0};}   // PA > physically available memory, translation is off (jump/branch amount is the culprit)
-        iaf_too_big_pa_with_translation: coverpoint(too_big_pa && instr_access_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // PA > physically available memory, translation is on (PTE.PPN or ITLB.PPN is the culprit)
-        iaf_non_exutable_region_without_translation: coverpoint(!match_any_execute_region && !too_big_pa && instr_access_fault) iff (rsn_i && !en_translation_i) {ignore_bins ignore = {0};}  // PA is within the range of physically available memory but not inside the executable region, translation is off (PC incrementation is the culprit)
-        iaf_non_exutable_region_with_translation: coverpoint(!match_any_execute_region && !too_big_pa && instr_access_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}  // PA is within the range of physically available memory but not inside the executable region, translation is on (PTE.PPN or ITLB.PPN is the culprit)
+        /* --- Instruction Access Faults: Not Supported in Lagarto Hun Core right now ---*/ 
+        // iaf_too_big_pa_without_translation: coverpoint(too_big_pa && instr_access_fault) iff (rsn_i && !en_translation_i) {ignore_bins ignore = {0};}   // PA > physically available memory, translation is off (jump/branch amount is the culprit)
+        // iaf_too_big_pa_with_translation: coverpoint(too_big_pa && instr_access_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // PA > physically available memory, translation is on (PTE.PPN or ITLB.PPN is the culprit)
+        // iaf_non_exutable_region_without_translation: coverpoint(!match_any_execute_region && !too_big_pa && instr_access_fault) iff (rsn_i && !en_translation_i) {ignore_bins ignore = {0};}  // PA is within the range of physically available memory but not inside the executable region, translation is off (PC incrementation is the culprit)
+        // iaf_non_exutable_region_with_translation: coverpoint(!match_any_execute_region && !too_big_pa && instr_access_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}  // PA is within the range of physically available memory but not inside the executable region, translation is on (PTE.PPN or ITLB.PPN is the culprit)
     endgroup: frontend_exceptions_cg
     frontend_exceptions_cg frontend_exceptions_cg_inst;
 
-    covergroup ifu_events_colliding_cg;
-        ifu_dispatch_itlb_flush_icache_miss_collide: coverpoint(ifu_dispatch_valid && itlb_flush && icache_miss) iff (rsn_i) {ignore_bins ignore = {0};}   // All three occuring on same cycle, uArch limitation? sfence.vma flushes the pipeline as well making ifu dispatch invalid???
-        ifu_dispatch_itlb_flush_icache_hit_collide: coverpoint(ifu_dispatch_valid && itlb_flush && icache_hit) iff (rsn_i) {ignore_bins ignore = {0};}     // uArch limitation? can icache hit & ifu dispatch valid occur at the same cycle given IFU is not pipelined???
-        ifu_dispatch_icache_flush_itlb_miss_collide: coverpoint(ifu_dispatch_valid && icache_flush && itlb_miss) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // uArch limitation? will fence.i flush the pipeline as well aking ifu dispatch invalid? Moreover, can non pipelined design of IFU have dispatch valid and itlb miss on same cycle?
-        ifu_dispatch_icache_flush_itlb_hit_collide: coverpoint(ifu_dispatch_valid && icache_flush && itlb_hit) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}     // same micro-architectural RTL limitations as mentioned above can make this coverpoint unreachable
-    endgroup: ifu_events_colliding_cg
-    ifu_events_colliding_cg ifu_events_colliding_cg_inst;
+    // covergroup ifu_events_colliding_cg;  // micro-arch limitation
+    //     ifu_dispatch_itlb_flush_icache_miss_collide: coverpoint(ifu_dispatch_valid && itlb_flush && icache_miss) iff (rsn_i) {ignore_bins ignore = {0};}   // All three occuring on same cycle, uArch limitation? sfence.vma flushes the pipeline as well making ifu dispatch invalid???
+    //     ifu_dispatch_itlb_flush_icache_hit_collide: coverpoint(ifu_dispatch_valid && itlb_flush && icache_hit) iff (rsn_i) {ignore_bins ignore = {0};}     // uArch limitation? can icache hit & ifu dispatch valid occur at the same cycle given IFU is not pipelined???
+    //     ifu_dispatch_icache_flush_itlb_miss_collide: coverpoint(ifu_dispatch_valid && icache_flush && itlb_miss) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // uArch limitation? will fence.i flush the pipeline as well aking ifu dispatch invalid? Moreover, can non pipelined design of IFU have dispatch valid and itlb miss on same cycle?
+    //     ifu_dispatch_icache_flush_itlb_hit_collide: coverpoint(ifu_dispatch_valid && icache_flush && itlb_hit) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}     // same micro-architectural RTL limitations as mentioned above can make this coverpoint unreachable
+    // endgroup: ifu_events_colliding_cg
+    // ifu_events_colliding_cg ifu_events_colliding_cg_inst;
 
     covergroup frontend_structures_stressed_cg;
         // MMU
@@ -509,7 +509,7 @@ module cov_frontend (
         ifu_2MiB_page_allocation: coverpoint(|entry_has_2mb_page) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}
         ifu_1GiB_page_allocation: coverpoint(|entry_has_1gb_page) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}
         itlb_has_all_page_sizes: coverpoint(itlb_has_all_page_size) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}
-        itlb_multi_hit: coverpoint($countones(itlb_lu_hit) > 1) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // We can hit if there is a base page lying inside a super-page, both pages are in different ITLB entries, and we try to access shared region. Software bug, RTL should be able to handle it???
+        // itlb_multi_hit: coverpoint($countones(itlb_lu_hit) > 1) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // We can hit if there is a base page lying inside a super-page, both pages are in different ITLB entries, and we try to access shared region. Software bug, RTL should be able to handle it???
         fetch_nc_addr_ic_disable: coverpoint(paddr_is_nc && ~cache_en_q) iff (rsn_i) {ignore_bins ignore = {0};} // fetch from non cacheable addr due to icache being disabled from a custom CSR
         fetch_nc_addr_pma: coverpoint(paddr_is_nc && cache_en_q) iff (rsn_i) {ignore_bins ignore = {0};} // fetch from non cacheable addr : region has non cacheable physical memory attribute (PMA). icache is enabled though!
     endgroup
@@ -519,7 +519,7 @@ module cov_frontend (
     initial
     begin
         frontend_exceptions_cg_inst             =   new();
-        ifu_events_colliding_cg_inst            =   new();
+        // ifu_events_colliding_cg_inst            =   new();
         frontend_structures_stressed_cg_inst    =   new();
         frontend_general_cg_inst                =   new();
     end
@@ -528,14 +528,9 @@ module cov_frontend (
     always @ (negedge clk_i)
     begin
         frontend_exceptions_cg_inst.sample();
-        ifu_events_colliding_cg_inst.sample();
+        // ifu_events_colliding_cg_inst.sample();
         frontend_structures_stressed_cg_inst.sample();
         frontend_general_cg_inst.sample();
     end
 
 endmodule
-
-// bind lagarto_m20 cov_frontend coverage_frontend (
-//     .clk_i(core_ref_clk),
-//     .rsn_i(sys_rst_n)
-// );

@@ -663,7 +663,12 @@ cov_backend cov_backend_inst{coreid}(.clk_i                          (core_ref_c
                                       .stall_fpu                     (`CORE_{coreid}.lagarto_m20.datapath_inst.exe_stage_inst.stall_fpu),
                                       .stall_o                       (`CORE_{coreid}.lagarto_m20.datapath_inst.exe_stage_inst.stall_o),
                                       .from_wb_i                     (`CORE_{coreid}.lagarto_m20.datapath_inst.exe_stage_inst.from_wb_i),
-                                      .pipeline_flush_o              (`CORE_{coreid}.lagarto_m20.datapath_inst.control_unit_inst.pipeline_flush_o)
+                                      .pipeline_flush_o              (`CORE_{coreid}.lagarto_m20.datapath_inst.control_unit_inst.pipeline_flush_o),
+                                      .miss_replay                   (`CORE_{coreid}.lagarto_m20.i_cache_subsystem.i_wt_dcache.miss_replay),
+                                      .wbuffer_empty_o               (`CORE_{coreid}.lagarto_m20.i_cache_subsystem.i_wt_dcache.wbuffer_empty_o),
+                                      .wbuffer_full                  (`CORE_{coreid}.lagarto_m20.i_cache_subsystem.i_wt_dcache.i_wt_dcache_wbuffer.full),
+                                      .miss_id_o                     (`CORE_{coreid}.lagarto_m20.i_cache_subsystem.i_wt_dcache.i_wt_dcache_wbuffer.miss_id_o),
+                                      .inval_hit                     (`CORE_{coreid}.lagarto_m20.i_cache_subsystem.i_wt_dcache.i_wt_dcache_wbuffer.inval_hit)
                                       );
   """.format(coreid = core_id))
 %>
