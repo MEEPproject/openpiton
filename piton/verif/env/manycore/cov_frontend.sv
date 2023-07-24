@@ -17,11 +17,10 @@ module cov_frontend (
     input icache_areq_i_t                       icache_areq_o,
     input icache_areq_o_t                       icache_areq_i,
     input logic                                 match_any_execute_region,
-    input logic                                 pte_lookup,
     input logic                                 data_rvalid_q,          // PTE data read from dcache/memory is valid on this cycle
     input riscv::pte_t                          pte,
     input logic                                 walking_instr,          // PTW is walking because of an ITLB miss
-    input logic                                 ptw_lvl_1, ptw_lvl_2, ptw_lvl_3,
+    input tlb_update_t                          itlb_update_o,
     // icache events
     input logic [ICACHE_SET_ASSOC-1:0]          cl_hit,
     input logic                                 icache_miss,
@@ -73,7 +72,6 @@ module cov_frontend (
     logic icache_hit;
     logic branch_flush;
     logic exception_flush;          // exception is taken
-    logic interrupt_flush;          // interrupt is taken
     logic [TLB_ENTRIES-1: 0] itlb_entry_valid;
     logic itlb_full;
     logic itlb_full_with_4kb_pages;
@@ -97,13 +95,12 @@ module cov_frontend (
     assign instr_access_fault               = (fe_exception_valid && fe_exception_cause == riscv::INSTR_ACCESS_FAULT)? 1'b1 : 1'b0;
     assign too_big_pa                       = icache_areq_o.fetch_paddr > ({IMPLEMENTED_PA_SIZE{1'b1}} - 1);
     assign pte_is_invalid                   = !pte.v || (!pte.r && pte.w);
-    assign valid_pte_rd_for_pc              = pte_lookup && data_rvalid_q && walking_instr;
+    assign valid_pte_rd_for_pc              = data_rvalid_q && walking_instr;
     assign valid_leaf_pte                   = valid_pte_rd_for_pc && !pte_is_invalid && (pte.r || pte.x);
     assign valid_non_leaf_pte               = valid_pte_rd_for_pc && !pte_is_invalid && !(pte.r || pte.x);
     assign icache_hit                       = |cl_hit;
     assign branch_flush                     = (exe_cu_i.valid && ~correct_branch_pred_i && !pipeline_ctrl_int.stall_exe) || id_cu_i.valid_jal; // coditional branch mispredicted at EXE || unpredicted jal at id stage
     assign exception_flush                  = csr_excpt_intrpt && !csr_cause[XLEN-1];
-    assign interrupt_flush                  = csr_excpt_intrpt && csr_cause[XLEN-1];
     assign itlb_full                        = &itlb_entry_valid;
     assign itlb_full_with_4kb_pages         = &entry_has_4kb_page;
     assign itlb_full_with_2mb_pages         = &entry_has_2mb_page;
@@ -177,12 +174,6 @@ module cov_frontend (
                         end
                     end: icache_miss_colliding_exception_flush
 
-                    begin: icache_miss_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: icache_miss_colliding_interrupt_flush
-                            `event1_collides_event2(icache_miss, interrupt_flush, i)
-                        end
-                    end: icache_miss_colliding_interrupt_flush
-
                     begin: icache_miss_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: icache_miss_colliding_icache_flush
                             `event1_collides_event2(icache_miss, icache_flush, i)
@@ -216,12 +207,6 @@ module cov_frontend (
                         end
                     end: icache_hit_colliding_exception_flush
 
-                    begin: icache_hit_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: icache_hit_colliding_interrupt_flush
-                            `event1_collides_event2(icache_hit, interrupt_flush, i)
-                        end
-                    end: icache_hit_colliding_interrupt_flush
-
                     begin: icache_hit_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: icache_hit_colliding_icache_flush
                             `event1_collides_event2(icache_hit, icache_flush, i)
@@ -254,12 +239,6 @@ module cov_frontend (
                             `event1_collides_event2(icache_fill_return, exception_flush, i)
                         end
                     end: icache_fill_return_colliding_exception_flush
-
-                    begin: icache_fill_return_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: icache_fill_return_colliding_interrupt_flush
-                            `event1_collides_event2(icache_fill_return, interrupt_flush, i)
-                        end
-                    end: icache_fill_return_colliding_interrupt_flush
 
                     begin: icache_fill_return_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: icache_fill_return_colliding_icache_flush
@@ -299,12 +278,6 @@ module cov_frontend (
                         end
                     end: itlb_miss_colliding_exception_flush
 
-                    begin: itlb_miss_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: itlb_miss_colliding_interrupt_flush
-                            `event1_collides_event2(itlb_miss, interrupt_flush, i)
-                        end
-                    end: itlb_miss_colliding_interrupt_flush
-
                     begin: itlb_miss_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: itlb_miss_colliding_icache_flush
                             `event1_collides_event2(itlb_miss, icache_flush, i)
@@ -338,12 +311,6 @@ module cov_frontend (
                         end
                     end: itlb_hit_colliding_exception_flush
 
-                    begin: itlb_hit_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: itlb_hit_colliding_interrupt_flush
-                            `event1_collides_event2(itlb_hit, interrupt_flush, i)
-                        end
-                    end: itlb_hit_colliding_interrupt_flush
-
                     begin: itlb_hit_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: itlb_hit_colliding_icache_flush
                             `event1_collides_event2(itlb_hit, icache_flush, i)
@@ -376,12 +343,6 @@ module cov_frontend (
                             `event1_collides_event2(itlb_fill_return, exception_flush, i)
                         end
                     end: itlb_fill_return_colliding_exception_flush
-
-                    begin: itlb_fill_return_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: itlb_fill_return_colliding_interrupt_flush
-                            `event1_collides_event2(itlb_fill_return, interrupt_flush, i)
-                        end
-                    end: itlb_fill_return_colliding_interrupt_flush
 
                     begin: itlb_fill_return_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: itlb_fill_return_colliding_icache_flush
@@ -417,12 +378,6 @@ module cov_frontend (
                         `event1_collides_event2(ifu_dispatch_valid, exception_flush, i)
                     end
                 end: ifu_dispatch_valid_colliding_exception_flush
-
-                begin: ifu_dispatch_valid_colliding_interrupt_flush
-                    for (genvar i=0; i<WINDOW_SIZE; i++) begin: ifu_dispatch_valid_colliding_interrupt_flush
-                        `event1_collides_event2(ifu_dispatch_valid, interrupt_flush, i)
-                    end
-                end: ifu_dispatch_valid_colliding_interrupt_flush
 
                 begin: ifu_dispatch_valid_colliding_icache_flush
                     for (genvar i=0; i<WINDOW_SIZE; i++) begin: ifu_dispatch_valid_colliding_icache_flush
@@ -465,16 +420,16 @@ module cov_frontend (
     /* ----- Declare cover groups here -----*/
     covergroup frontend_exceptions_cg;
         /* --- Instruction Page Faults ---*/
-        ipf_bad_VA: coverpoint(canonical_violation && instr_page_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Bad VA or canonical violation, RTL should translate it into instruction page fault exception as per RISCV spec
+        ipf_bad_VA: coverpoint(canonical_violation) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Bad VA or canonical violation, RTL should translate it into instruction page fault exception as per RISCV spec
         ipf_upage_violation: coverpoint(iaccess_err && smode && instr_page_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // Attempt is made to access user instruction page in S mode (Note: MSTATUS.SUM field only impacts data pages)
         ipf_spage_violation: coverpoint(iaccess_err && umode && instr_page_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // Attempt is made to access supervisor instruction page in U mode
         ipf_pte_invalid: coverpoint(valid_pte_rd_for_pc && !pte.v) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // PTE is invalid at PTE lookup state during PTW for ITLB miss
-        ipf_pte_illegal_rw_combination: coverpoint(valid_pte_rd_for_pc && (!pte.r && pte.w)) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // writeable page without read permissions is an illegal combination in RISCV
+        ipf_pte_illegal_rw_combination: coverpoint(valid_pte_rd_for_pc && !pte.r && pte.w) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // writeable page without read permissions is an illegal combination in RISCV
         ipf_leaf_pte_no_x_permission: coverpoint(valid_leaf_pte && !pte.x) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Leaf PTE is valid but does not grant execute page permissions
         ipf_leaf_pte_a_flag_zero: coverpoint(valid_leaf_pte && !pte.a) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Leaf PTE is valid but has A flag zero, RTL should generate page fault to let software set A flag by updating PTEs (RISCV allows software as well as hardware management of A and D flags)
-        ipf_misaligned_superpage_1GB: coverpoint(valid_leaf_pte && ptw_lvl_1 && pte.ppn[17:0] != '0) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // misaligned 1GB superpage translation. leaf PTE.PPN[17:0] bits not zero.
-        ipf_misaligned_superpage_2MB: coverpoint(valid_leaf_pte && ptw_lvl_2 && pte.ppn[8:0] != '0) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // misaligned 2MB superpage translation. leaf PTE.PPN[8:0] bits not zero.
-        ipf_translation_too_deep: coverpoint(valid_non_leaf_pte && ptw_lvl_3) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Leaf PTE is not found even at the last(3rd) level.
+        ipf_misaligned_superpage_1GB: coverpoint(valid_leaf_pte && itlb_update_o.is_1G  && pte.ppn[17:0] != '0) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // misaligned 1GB superpage translation. leaf PTE.PPN[17:0] bits not zero.
+        ipf_misaligned_superpage_2MB: coverpoint(valid_leaf_pte && itlb_update_o.is_2M  && pte.ppn[8:0] != '0) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // misaligned 2MB superpage translation. leaf PTE.PPN[8:0] bits not zero.
+        ipf_translation_too_deep: coverpoint(valid_non_leaf_pte && ~(itlb_update_o.is_1G | itlb_update_o.is_2M)) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};} // Leaf PTE is not found even at the last(3rd) level.
         /* --- Instruction Access Faults: Not Supported in Lagarto Hun Core right now ---*/ 
         // iaf_too_big_pa_without_translation: coverpoint(too_big_pa && instr_access_fault) iff (rsn_i && !en_translation_i) {ignore_bins ignore = {0};}   // PA > physically available memory, translation is off (jump/branch amount is the culprit)
         // iaf_too_big_pa_with_translation: coverpoint(too_big_pa && instr_access_fault) iff (rsn_i && en_translation_i) {ignore_bins ignore = {0};}   // PA > physically available memory, translation is on (PTE.PPN or ITLB.PPN is the culprit)
