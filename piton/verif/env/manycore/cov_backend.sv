@@ -28,12 +28,10 @@ module cov_backend (
     input logic                         ptw_active,
     input logic                         walking_instr,
     input logic                         ptw_error,
-    input logic                         pte_lookup,
     input logic                         data_rvalid_q,
     input riscv::pte_t                  pte,
     input logic                         lsu_is_store_i,
-    input  logic                        mxr_i,
-    input logic                         ptw_lvl_1, ptw_lvl_2, ptw_lvl_3,
+    input tlb_update_t                  dtlb_update_o,
     input tlb_tags_q_t                  dtlb_tags_q,
     input logic                         dtlb_flush,
     input logic                         itlb_access_i,
@@ -111,7 +109,7 @@ module cov_backend (
     logic [TLB_ENTRIES-1: 0] entry_has_2mb_page;
     logic [TLB_ENTRIES-1: 0] entry_has_1gb_page;
     logic ptw_req_for_dtlb_miss, ptw_req_for_itlb_miss;
-    logic branch_flush, exception_flush, interrupt_flush;
+    logic branch_flush, exception_flush;
     logic dcache_hit, dcache_miss, dcache_fill_return;
     logic [PIPELINE_STAGES-1:0] stall_pipeline_stages;
     logic [BRANCH_PMU_EVENTS-1:0] branch_pmu_events;
@@ -128,7 +126,7 @@ module cov_backend (
     endgenerate
     
 
-    assign canonical_violation              =   en_ld_st_translation_i && !((&resp_dcache_cpu_i.addr[63:riscv::VLEN-1]) == 1'b1 || (|resp_dcache_cpu_i.addr[63:riscv::VLEN-1]) == 1'b0) && from_rr_i.instr.unit == UNIT_MEM;
+    assign canonical_violation              =   en_ld_st_translation_i && !((&resp_dcache_cpu_i.addr[riscv::VLEN-1:IMPLEMENTED_VA_SIZE-1]) == 1'b1 || (|resp_dcache_cpu_i.addr[riscv::VLEN-1:IMPLEMENTED_VA_SIZE-1]) == 1'b0) && from_rr_i.instr.unit == UNIT_MEM;
     assign load_page_fault                  =   (to_wb_o.ex.cause == LD_PAGE_FAULT) && to_wb_o.ex.valid?  1'b1    :   1'b0;
     assign store_amo_page_fault             =   (to_wb_o.ex.cause == ST_AMO_PAGE_FAULT) && to_wb_o.ex.valid?  1'b1    :   1'b0;
     assign store_misaligned_exception       =   (to_wb_o.ex.cause == ST_AMO_ADDR_MISALIGNED) && to_wb_o.ex.valid?  1'b1    :   1'b0;
@@ -142,8 +140,8 @@ module cov_backend (
     assign ptw_error_for_lsu                =   ptw_active && !walking_instr && ptw_error && lsu_exception_o.valid;
     assign lpf_during_ptw                   =   ptw_error_for_lsu && (lsu_exception_o.cause == riscv::LOAD_PAGE_FAULT);
     assign spf_during_ptw                   =   ptw_error_for_lsu && (lsu_exception_o.cause == riscv::STORE_PAGE_FAULT);
-    assign valid_pte_rd_for_store           =   pte_lookup && data_rvalid_q && !walking_instr && lsu_is_store_i;
-    assign valid_pte_rd_for_load            =   pte_lookup && data_rvalid_q && !walking_instr && !lsu_is_store_i;
+    assign valid_pte_rd_for_store           =   data_rvalid_q && !walking_instr && lsu_is_store_i;
+    assign valid_pte_rd_for_load            =   data_rvalid_q && !walking_instr && !lsu_is_store_i;
     assign legal_pte_rd_for_store           =   valid_pte_rd_for_store && pte.v && !(!pte.r && pte.w);
     assign legal_pte_rd_for_load            =   valid_pte_rd_for_load && pte.v && !(!pte.r && pte.w);
     assign legal_leaf_pte_rd_for_store      =   legal_pte_rd_for_store && (pte.r || pte.x);
@@ -168,7 +166,6 @@ module cov_backend (
                                                 supervisor_external_intrpt_valid, supervisor_software_intrpt_valid, supervisor_timer_intrpt_valid};
     assign branch_flush                     =   (exe_cu_i.valid && ~correct_branch_pred_i && !pipeline_ctrl_int.stall_exe) || id_cu_i.valid_jal; // coditional branch mispredicted at EXE || unpredicted jal at id stage
     assign exception_flush                  =   csr_excpt_intrpt && !csr_cause[XLEN-1];
-    assign interrupt_flush                  =   csr_excpt_intrpt && csr_cause[XLEN-1];
     assign dcache_miss                      =   |miss_req;
     assign dcache_hit                       =   |rd_hit_oh && dcache_en_i;
     assign dcache_fill_return               =   mem_rtrn_vld_i;
@@ -235,12 +232,6 @@ module cov_backend (
                         end
                     end: dcache_miss_colliding_exception_flush
 
-                    begin: dcache_miss_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: dcache_miss_colliding_interrupt_flush
-                            `event1_collides_event2(dcache_miss, interrupt_flush, i)
-                        end
-                    end: dcache_miss_colliding_interrupt_flush
-
                     begin: dcache_miss_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: dcache_miss_colliding_icache_flush
                             `event1_collides_event2(dcache_miss, icache_flush, i)
@@ -274,12 +265,6 @@ module cov_backend (
                         end
                     end: dcache_hit_colliding_exception_flush
 
-                    begin: dcache_hit_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: dcache_hit_colliding_interrupt_flush
-                            `event1_collides_event2(dcache_hit, interrupt_flush, i)
-                        end
-                    end: dcache_hit_colliding_interrupt_flush
-
                     begin: dcache_hit_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: dcache_hit_colliding_icache_flush
                             `event1_collides_event2(dcache_hit, icache_flush, i)
@@ -312,12 +297,6 @@ module cov_backend (
                             `event1_collides_event2(dcache_fill_return, exception_flush, i)
                         end
                     end: dcache_fill_return_colliding_exception_flush
-
-                    begin: dcache_fill_return_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: dcache_fill_return_colliding_interrupt_flush
-                            `event1_collides_event2(dcache_fill_return, interrupt_flush, i)
-                        end
-                    end: dcache_fill_return_colliding_interrupt_flush
 
                     begin: dcache_fill_return_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: dcache_fill_return_colliding_icache_flush
@@ -357,12 +336,6 @@ module cov_backend (
                         end
                     end: dtlb_miss_colliding_exception_flush
 
-                    begin: dtlb_miss_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: dtlb_miss_colliding_interrupt_flush
-                            `event1_collides_event2(dtlb_miss, interrupt_flush, i)
-                        end
-                    end: dtlb_miss_colliding_interrupt_flush
-
                     begin: dtlb_miss_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: dtlb_miss_colliding_icache_flush
                             `event1_collides_event2(dtlb_miss, icache_flush, i)
@@ -396,12 +369,6 @@ module cov_backend (
                         end
                     end: dtlb_hit_colliding_exception_flush
 
-                    begin: dtlb_hit_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: dtlb_hit_colliding_interrupt_flush
-                            `event1_collides_event2(dtlb_hit, interrupt_flush, i)
-                        end
-                    end: dtlb_hit_colliding_interrupt_flush
-
                     begin: dtlb_hit_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: dtlb_hit_colliding_icache_flush
                             `event1_collides_event2(dtlb_hit, icache_flush, i)
@@ -434,12 +401,6 @@ module cov_backend (
                             `event1_collides_event2(dtlb_fill_return, exception_flush, i)
                         end
                     end: dtlb_fill_return_colliding_exception_flush
-
-                    begin: dtlb_fill_return_colliding_interrupt_flush
-                        for (genvar i=0; i<WINDOW_SIZE; i++) begin: dtlb_fill_return_colliding_interrupt_flush
-                            `event1_collides_event2(dtlb_fill_return, interrupt_flush, i)
-                        end
-                    end: dtlb_fill_return_colliding_interrupt_flush
 
                     begin: dtlb_fill_return_colliding_icache_flush
                         for (genvar i=0; i<WINDOW_SIZE; i++) begin: dtlb_fill_return_colliding_icache_flush
@@ -486,35 +447,35 @@ module cov_backend (
     /* ----- Declare cover groups here -----*/
     covergroup backend_exceptions_cg;
         /* --- Load page Fault ---*/
-        lpf_bad_VA: coverpoint(canonical_violation && load_page_fault) iff (rsn_i) {ignore_bins ignore = {0};} // Bad VA or canonical violation, RTL should translate it into load page fault exception as per RISCV spec
+        lpf_bad_VA: coverpoint(canonical_violation) iff (rsn_i) {ignore_bins ignore = {0};} // Bad VA or canonical violation, RTL should translate it into load page fault exception as per RISCV spec
         lpf_upage_violation: coverpoint(daccess_err && smode && lpf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // SUM is not set and we are trying to access a user page in supervisor mode for load op
         lpf_spage_violation: coverpoint(daccess_err && umode && lpf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // this is not a user page but we are in user mode and trying to access it for load op
-        lpf_non_readable_page: coverpoint(dtlb_hit_for_load && !dtlb_pte_q.r && lpf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
-        lpf_non_accessed_page: coverpoint(dtlb_hit_for_load && !dtlb_pte_q.a && lpf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
+        lpf_non_readable_page: coverpoint(!dtlb_pte_q.r && lpf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
+        lpf_non_accessed_page: coverpoint(!dtlb_pte_q.a && lpf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
         lpf_during_page_table_walk: coverpoint(lpf_during_ptw) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // load page fault during page table walk due to any reason
         lpf_pte_invalid: coverpoint(valid_pte_rd_for_load && !pte.v) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // load page fault during page table walk due to PTE being invalid
         lpf_pte_illegal_rw_combination: coverpoint(valid_pte_rd_for_load && (!pte.r && pte.w)) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // writeable page without read permissions is an illegal combination in RISCV
         lpf_leaf_pte_a_flag_zero: coverpoint(legal_leaf_pte_rd_for_load && !pte.a) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // a flag is zero in leaf PTE read for load address translation
-        lpf_leaf_pte_r_flag_zero: coverpoint(legal_leaf_pte_rd_for_load && !pte.r && !mxr_i) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // leaf page table entry has r=0. non readable page is also non write-able so it means it is execute only page, so check mxr field in mstatus is not set
-        lpf_misaligned_superpage_1GB: coverpoint(legal_leaf_pte_rd_for_load && ptw_lvl_1 && pte.ppn[17:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 1 GiB misaligned superpage
-        lpf_misaligned_superpage_2MB: coverpoint(legal_leaf_pte_rd_for_load && ptw_lvl_2 && pte.ppn[8:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 2 MiB misaligned superpage
-        lpf_translation_too_deep: coverpoint(legal_nonleaf_pte_rd_for_load && ptw_lvl_3) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Leaf page table entry is not found even at the last level (3rd for Sv39)
+        lpf_leaf_pte_r_flag_zero: coverpoint(legal_leaf_pte_rd_for_load && !pte.r) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // leaf page table entry has r=0. non readable page is also non write-able so it means it is execute only page, so check mxr field in mstatus is not set
+        lpf_misaligned_superpage_1GB: coverpoint(legal_leaf_pte_rd_for_load && dtlb_update_o.is_1G && pte.ppn[17:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 1 GiB misaligned superpage
+        lpf_misaligned_superpage_2MB: coverpoint(legal_leaf_pte_rd_for_load && dtlb_update_o.is_2M && pte.ppn[8:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 2 MiB misaligned superpage
+        lpf_translation_too_deep: coverpoint(legal_nonleaf_pte_rd_for_load && ~(dtlb_update_o.is_1G | dtlb_update_o.is_2M)) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Leaf page table entry is not found even at the last level (3rd for Sv39)
 
         /* --- Store page Fault ---*/
-        spf_bad_VA: coverpoint(canonical_violation && store_amo_page_fault) iff (rsn_i) {ignore_bins ignore = {0};} // Bad VA or canonical violation, RTL should translate it into store page fault exception as per RISCV spec
+        spf_bad_VA: coverpoint(canonical_violation) iff (rsn_i) {ignore_bins ignore = {0};} // Bad VA or canonical violation, RTL should translate it into store page fault exception as per RISCV spec
         spf_upage_violation: coverpoint(daccess_err && smode && spf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // SUM is not set and we are trying to access a user page in supervisor mode for store op
         spf_spage_violation: coverpoint(daccess_err && umode && spf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // this is not a user page but we are in user mode and trying to access it for store op
-        spf_non_writeable_page: coverpoint(dtlb_hit_for_store && !dtlb_pte_q.w && spf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
-        spf_non_dirty_page: coverpoint(dtlb_hit_for_store && !dtlb_pte_q.d && spf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
+        spf_non_writeable_page: coverpoint(!dtlb_pte_q.w && spf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
+        spf_non_dirty_page: coverpoint(!dtlb_pte_q.d && spf_from_dtlb_hit) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // DTLB hit entry for store op does not have W flag set
         spf_during_page_table_walk: coverpoint(spf_during_ptw) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // store page fault during page table walk due to any reason
         spf_pte_invalid: coverpoint(valid_pte_rd_for_store && !pte.v) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // store page fault during page table walk due to PTE being invalid
         spf_pte_illegal_rw_combination: coverpoint(valid_pte_rd_for_store && (!pte.r && pte.w)) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // writeable page without read permissions is an illegal combination in RISCV
         spf_leaf_pte_a_flag_zero: coverpoint(legal_leaf_pte_rd_for_store && !pte.a) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // a flag is zero in leaf PTE read for store address translation
         spf_leaf_pte_w_flag_zero: coverpoint(legal_leaf_pte_rd_for_store && !pte.w) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // leaf page table entry has w=0. store request going to either execute-only, read-only or read-execute page
         spf_leaf_pte_d_flag_zero: coverpoint(legal_leaf_pte_rd_for_store && !pte.d) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // leaf page table entry has d=0. generate page fault so that software can update PTEs!
-        spf_misaligned_superpage_1GB: coverpoint(legal_leaf_pte_rd_for_store && ptw_lvl_1 && pte.ppn[17:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 1 GiB misaligned superpage
-        spf_misaligned_superpage_2MB: coverpoint(legal_leaf_pte_rd_for_store && ptw_lvl_2 && pte.ppn[8:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 2 MiB misaligned superpage
-        spf_translation_too_deep: coverpoint(legal_nonleaf_pte_rd_for_store && ptw_lvl_3) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Leaf page table entry is not found even at the last level (3rd for Sv39)
+        spf_misaligned_superpage_1GB: coverpoint(legal_leaf_pte_rd_for_store && dtlb_update_o.is_1G && pte.ppn[17:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 1 GiB misaligned superpage
+        spf_misaligned_superpage_2MB: coverpoint(legal_leaf_pte_rd_for_store && dtlb_update_o.is_2M && pte.ppn[8:0] != '0) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Allocation of 2 MiB misaligned superpage
+        spf_translation_too_deep: coverpoint(legal_nonleaf_pte_rd_for_store && ~(dtlb_update_o.is_1G | dtlb_update_o.is_2M)) iff (rsn_i && en_ld_st_translation_i) {ignore_bins ignore = {0};} // Leaf page table entry is not found even at the last level (3rd for Sv39)
         
         /* --- Address Misaligned ---*/
         load_address_misaligned: coverpoint(load_misaligned_exception) iff (rsn_i) {ignore_bins ignore = {0};}
