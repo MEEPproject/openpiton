@@ -28,6 +28,11 @@ do
   # Do the report of the latest modified folder
   regreport $(ls -td -- */ | head -n 1) -summary |tee -a $RESULT_LOG
   
+  if grep -q 'REGRESSION FAILED' $RESULT_LOG
+  then
+    echo "Regression FAILED. Finish report"
+    exit 1
+  fi
 done < ../isa_group_list.txt
 
 echo "Elapsed Time: $SECONDS seconds"

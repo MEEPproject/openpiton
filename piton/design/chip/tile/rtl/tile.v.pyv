@@ -264,6 +264,19 @@ print(s)
     // PMU
     output  [26:0]                      pmu_sig_o
 `endif
+`ifdef XBAR_LVRF_ENABLE 
+    , // VNOC interface
+    input                                vnoc_req_val_i,
+    input       [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_i,
+    input    [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_i,
+    output                               vnoc_req_rdy_o,
+    output                               vnoc_rsp_val_o,
+    output      [`VNOC_DATA_WIDTH - 1:0] vnoc_rsp_dat_o,
+    output   [`VNOC_RSP_HDR_WIDTH - 1:0] vnoc_rsp_hdr_o,
+    output                               vnoc_rsp_sgl_flt_o,
+    input                                vnoc_rsp_rdy_i
+
+`endif
 );
     // clock gating
     wire clk_gated;
@@ -1384,6 +1397,20 @@ print(str)
         .l15_req_o           (l15_req                   ),
         .l15_rtrn_i          (l15_rtrn                  ),
 
+        
+`ifdef XBAR_LVRF_ENABLE        
+        .vnoc_req_val_i       ( vnoc_req_val_i     ),
+        .vnoc_req_dat_i       ( vnoc_req_dat_i     ),
+        .vnoc_req_hdr_i       ( vnoc_req_hdr_i     ),
+        .vnoc_rsp_sgl_flt_o   ( vnoc_rsp_sgl_flt_o ),
+        .vnoc_req_rdy_o       ( vnoc_req_rdy_o     ),
+        .vnoc_rsp_val_o       ( vnoc_rsp_val_o     ),
+        .vnoc_rsp_dat_o       ( vnoc_rsp_dat_o     ),
+        .vnoc_rsp_hdr_o       ( vnoc_rsp_hdr_o     ),
+        .vnoc_rsp_rdy_i       ( vnoc_rsp_rdy_i     ),
+
+`endif
+
         // PMU
         .pmu_sig_o               (pmu_sig_o),
         
@@ -1392,7 +1419,10 @@ print(str)
         .req_data_o   ( acc_req_data   ),
         .resp_ready_o ( acc_resp_ready ),
         .resp_valid_i ( acc_resp_valid ),
-        .resp_data_i  ( acc_resp_data  )
+        .resp_data_i  ( acc_resp_data  ),
+
+        .default_coreid_x ( default_coreid_x ),
+        .default_coreid_y ( default_coreid_y )
     );
 
     noc2_arbiter_2input #(
