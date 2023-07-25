@@ -42,9 +42,10 @@ while getopts 'sh' OPTION; do
       echo -e       "   acme_ea_4h2v: \tCORE=lagarto \tx_tiles=2 \ty_tyles=2 \tvlanes=2"
       echo -e       "   acme_ea_16h: \tCORE=lagarto \tx_tiles=4 \ty_tyles=4 "
       echo -e       "   acme_ea_1h: \t\tCORE=lagarto \tx_tiles=1 \ty_tyles=1 "
+      echo -e       "   acme_ea_1h2v: \tCORE=lagarto \tx_tiles=1 \ty_tyles=1 \tvlanes=2 "
       echo -e       "   acme_ea_1h2g: \tCORE=lagarto \tx_tiles=1 \ty_tyles=1 \tvlanes=2 \tSA-HEVC+SA-NN "
-      echo -e       "   acme_ea_9h8m: \tCORE=lagarto \tx_tiles=3 \ty_tyles=3 \tmemory_tile=8 "
-      echo -e       "   acme_ea_4h2v2m: \tCORE=lagarto \tx_tiles=2 \ty_tyles=2 \tvlanes=2 \tmemory_tile=2 "
+      echo -e       "   acme_ea_9h8m: \tCORE=lagarto \tx_tiles=3 \ty_tyles=3 \tmultimc=8 "
+      echo -e       "   acme_ea_4h2v2m: \tCORE=lagarto \tx_tiles=2 \ty_tyles=2 \tvlanes=2 \tmultimc=2 "
       echo -e ${BC}"<protosyn_flag> available combinations :"
       echo -e  ${BW}"  pronoc: ProNoC routers"
       echo -e  "  vnpm: \tVivado non project mode"
@@ -52,8 +53,8 @@ while getopts 'sh' OPTION; do
       echo -e  "  meep: \tGenerate a file list and a define list to called by the MEEP Shell project flow"
       echo -e  "  eth: \t\tAdd Ethernet controller to implementation"
       echo -e  "  ncmem: \tCreate an alias of the main memory bypassing the cache. Only available with meep option"
-      echo -e  "  multimc: \t Multi memory controller" ${NC}
-      echo -e  "  memtile: \t Use memory tile (one per row)" ${NC}
+      echo -e  "  multimc: \tMulti memory controller"
+      echo -e  "  memtile: \tUse memory tile (one per row)" ${NC}
       exit 0
       ;;
     ?)
