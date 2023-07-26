@@ -77,15 +77,18 @@ Compilation with VPU is made with the `-vpu_enable ` key. User can select the nu
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -vpu_enable -config_rtl=VPU_8_LANES
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -vpu_enable -config_rtl=VPU_16_LANES
 
-Compilation with Systolic Arrays is made with the `-sa_hevc_enable` or `-sa_nn_enable` key:
-
-    sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -sa_hevc_enable
-    sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -sa_nn_enable
-
 To compile with choice of Memtile implementation, use `-memtile_enable=PARAM` key, where `PARAM` can take values `MOCK` (to use fake memtile) or `BEHAV` (to use behavioral model). Along with `-memtile_enable=PARAM`, the `-hbm` key is required:
 
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -hbm -memtile_enable=MOCK
     sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -hbm -memtile_enable=BEHAV
+
+Compilation with Systolic Arrays is made with the `-sa_hevc_enable` or `-sa_nn_enable` key and the selection of memory tile is compulsory as they require it to run correctly. Example of running all the pieces together:
+
+    sims -sys=manycore -x_tiles=1 -y_tiles=1 -msm_build -lagarto -config_rtl=BSC_RTL_SRAMS -config_rtl=FPU_ZAGREB -hbm -memtile_enable=BEHAV -vpu_enable -config_rtl=VPU_4_LANES -config_rtl=MINIMAL_MONITORING
+    sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 axpy_acme_1_128.S -lagarto -precompiled && cat fake_uart.log
+    sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 hevc_256_16.S -lagarto -precompiled && cat fake_uart.log
+    sims -sys=manycore -msm_run -x_tiles=1 -y_tiles=1 sa_nn.S -lagarto -precompiled && cat fake_uart.log
+
 
 
 ### Clean builds
