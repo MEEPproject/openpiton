@@ -1444,12 +1444,6 @@ print(str)
         .val_o   ( arbiter_valid_noc2 ),
         .rdy_i   ( arbiter_ready_noc2 )
     );
-`else
-
-    assign arbiter_data_noc2 = processor_router_data_noc2;
-    assign arbiter_valid_noc2 = processor_router_valid_noc2;
-    assign router_processor_ready_noc2 = arbiter_ready_noc2;
-
 `endif
 
     assign unavailable_o = 1'b0;
@@ -1457,6 +1451,13 @@ print(str)
 `endif // ifdef PITON_LAGARTO
 end
 endgenerate
+
+
+`ifndef PITON_MEMTILE_ENABLE
+    assign arbiter_data_noc2 = processor_router_data_noc2;
+    assign arbiter_valid_noc2 = processor_router_valid_noc2;
+    assign router_processor_ready_noc2 = arbiter_ready_noc2;
+`endif
 
     //////////
     // L1.5 //
