@@ -1257,7 +1257,7 @@ wire                               m_axi_bready;
 
 `endif
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
 wire                               vnoc_req_val;
 wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat;
 wire   [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr;
@@ -1401,7 +1401,7 @@ chip chip(
     .mcx_processor_noc3_yummy(mcx_processor_noc3_yummy)
   `endif
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     // vNoC (vector data NoC) interface -- ProNoC interface
     ,
     .vnoc_req_val_i     ( vnoc_req_val     ),
@@ -2113,7 +2113,7 @@ chipset chipset(
 `endif // PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     // vNoC (vector data NoC) interface -- ProNoC interface
     .vnoc_req_val_o     ( vnoc_req_val     ),
     .vnoc_req_dat_o     ( vnoc_req_dat     ),

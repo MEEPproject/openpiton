@@ -3182,7 +3182,7 @@ sub parse_args
   push (@{$opt{config_rtl}}, "SA_HEVC_ENABLE") if ($opt{sa_hevc_enable});
   push (@{$opt{config_rtl}}, "SA_NN_ENABLE")   if ($opt{sa_nn_enable});
   push (@{$opt{config_rtl}}, "VPU_ENABLE")    if ($opt{vpu_enable});
-  push (@{$opt{config_rtl}}, "XBAR_LVRF_ENABLE") if (($opt{sa_nn_enable}) || ($opt{sa_hevc_enable}) || ($opt{vpu_enable}));
+  push (@{$opt{config_rtl}}, "XBAR_LVRF_ENABLE") if ($opt{memtile_enable} and (($opt{sa_nn_enable}) || ($opt{sa_hevc_enable}) || ($opt{vpu_enable})));
   push (@{$opt{config_rtl}}, "PITON_METRO_MPI")   if ($opt{metro_mpi_build});
   push (@{$opt{config_rtl}}, "PITON_COVERAGE")  if ($opt{cov}) ;
   push (@{$opt{config_rtl}}, "PITON_MANYGUI")  if ($opt{mgui_build});

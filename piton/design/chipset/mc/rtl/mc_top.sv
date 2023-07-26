@@ -259,7 +259,7 @@ module mc_top (
     output                               ncmem_axi_bready,
     `endif // NON_CACHE_MEM
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     // vNoC (vector data NoC) interface -- ProNoC interface
     output wire                               vnoc_req_val_o,
     output wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,

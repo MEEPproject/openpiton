@@ -180,7 +180,7 @@ module chip(
 
 `endif
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     , // VNOC interface to/from memtile
     input                                vnoc_req_val_i,
     input       [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_i,
@@ -1550,7 +1550,7 @@ module chip(
     print(assign + edge_assign)
     print("`endif")    
 
-    print ("`ifdef PITON_MEMTILE_ENABLE");
+    print ("`ifdef XBAR_LVRF_ENABLE");
     for i in range(PITON_Y_TILES):
       template=r'''
       vnoc #(
@@ -1578,7 +1578,7 @@ module chip(
 
 %>
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
 
 generate
 for (x =0; x<= `PITON_X_TILES; x++) begin : XX_

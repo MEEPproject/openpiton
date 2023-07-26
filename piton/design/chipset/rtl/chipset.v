@@ -649,7 +649,7 @@ module chipset(
 `endif //`ifdef PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     output wire                                 vnoc_req_val_o,
     output wire        [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,
     output wire     [`VNOC_REQ_HDR_WIDTH - 1:0] vnoc_req_hdr_o,
@@ -2171,7 +2171,7 @@ chipset_impl_noc_power_test  chipset_impl (
         `endif // endif PITON_FPGA_MC_DDR3
     `endif // endif PITONSYS_NO_MC
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
             .vnoc_req_val_o     ( vnoc_req_val_o     ),
             .vnoc_req_dat_o     ( vnoc_req_dat_o     ),
             .vnoc_req_hdr_o     ( vnoc_req_hdr_o     ),

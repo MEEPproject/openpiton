@@ -1044,17 +1044,16 @@ def main():
         os.environ['VPU_ENABLE'] = "1"
         print_info('setenv VPU_ENABLE')
 
-    # Crossbar and LVRF
-    if options.sa_nn_enable or options.sa_hevc_enable or options.vpu_enable:
-        defines.append('XBAR_LVRF_ENABLE')
-        print_info('setenv XBAR_LVRF_ENABLE')
-
     # Memory tile
     os.environ['PITON_MEMTILE_ENABLE'] = "0"
     if options.memtile:
         defines.append('MEMTILE_USE_RTL')
         defines.append('PITON_MEMTILE_ENABLE')
         os.environ['PITON_MEMTILE_ENABLE'] = "1"
+        # Crossbar and LVRF. Enable when memory tile is in place and any accelerator
+        if options.sa_nn_enable or options.sa_hevc_enable or options.vpu_enable:
+            defines.append('XBAR_LVRF_ENABLE')
+            print_info('setenv XBAR_LVRF_ENABLE')
 
     # ProNoC
     os.environ['PITON_PRONOC'] = "0"

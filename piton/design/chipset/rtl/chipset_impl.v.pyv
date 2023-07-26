@@ -573,7 +573,7 @@ module chipset_impl(
 `endif // ifdef PITON_FPGA_MC_DDR3
 `endif // endif PITONSYS_NO_MC
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     // vNoC (vector data NoC) interface -- ProNoC interface
     output wire                               vnoc_req_val_o,
     output wire      [`VNOC_DATA_WIDTH - 1:0] vnoc_req_dat_o,
@@ -1418,7 +1418,7 @@ credit_to_valrdy noc3_xbar_to_%s(
 				    .ncmem_axi_wvalid(ncmem_axi_wvalid),
 				    `endif //`ifdef PITON_NONCACH_MEM
 
-                    `ifdef PITON_MEMTILE_ENABLE
+                    `ifdef XBAR_LVRF_ENABLE
                     // vNoC (vector data NoC) interface -- ProNoC interface
                     .vnoc_req_val_o       ( vnoc_req_val_o       ),
                     .vnoc_req_dat_o       ( vnoc_req_dat_o       ),
@@ -1429,7 +1429,7 @@ credit_to_valrdy noc3_xbar_to_%s(
                     .vnoc_rsp_dat_i       ( vnoc_rsp_dat_i       ),
                     .vnoc_rsp_hdr_i       ( vnoc_rsp_hdr_i       ),
                     .vnoc_rsp_rdy_o       ( vnoc_rsp_rdy_o       ),
-                    `endif // PITON_MEMTILE_ENABLE
+                    `endif // XBAR_LVRF_ENABLE
 
             `ifdef PITON_EXTRA_MEMS
              // vectorized multi-MC AXI bus

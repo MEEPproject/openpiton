@@ -1396,7 +1396,6 @@ print(str)
 
         .l15_req_o           (l15_req                   ),
         .l15_rtrn_i          (l15_rtrn                  ),
-
         
 `ifdef XBAR_LVRF_ENABLE        
         .vnoc_req_val_i       ( vnoc_req_val_i     ),
@@ -1408,11 +1407,6 @@ print(str)
         .vnoc_rsp_dat_o       ( vnoc_rsp_dat_o     ),
         .vnoc_rsp_hdr_o       ( vnoc_rsp_hdr_o     ),
         .vnoc_rsp_rdy_i       ( vnoc_rsp_rdy_i     ),
-
-`endif
-
-        // PMU
-        .pmu_sig_o               (pmu_sig_o),
         
         .req_ready_i  ( acc_req_ready  ),
         .req_valid_o  ( acc_req_valid  ),
@@ -1420,12 +1414,15 @@ print(str)
         .resp_ready_o ( acc_resp_ready ),
         .resp_valid_i ( acc_resp_valid ),
         .resp_data_i  ( acc_resp_data  ),
+`endif
 
+        // PMU
+        .pmu_sig_o               (pmu_sig_o),
         .default_coreid_x ( default_coreid_x ),
         .default_coreid_y ( default_coreid_y )
     );
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     noc2_arbiter_2input #(
         .NOC_WIDTH ( `NOC_DATA_WIDTH )
     ) arbiter_impl (
@@ -1453,7 +1450,7 @@ end
 endgenerate
 
 
-`ifndef PITON_MEMTILE_ENABLE
+`ifndef XBAR_LVRF_ENABLE
     assign arbiter_data_noc2 = processor_router_data_noc2;
     assign arbiter_valid_noc2 = processor_router_valid_noc2;
     assign router_processor_ready_noc2 = arbiter_ready_noc2;
@@ -1623,7 +1620,7 @@ endgenerate
         .rtap_srams_bist_data (rtap_srams_bist_data)
     );
 
-`ifdef PITON_MEMTILE_ENABLE
+`ifdef XBAR_LVRF_ENABLE
     noc3_demux noc3_demux_impl (
         .clk_i        ( clk_gated                   ),
         .rst_ni       ( rst_n_f                     ),
