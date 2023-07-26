@@ -1425,6 +1425,7 @@ print(str)
         .default_coreid_y ( default_coreid_y )
     );
 
+`ifdef PITON_MEMTILE_ENABLE
     noc2_arbiter_2input #(
         .NOC_WIDTH ( `NOC_DATA_WIDTH )
     ) arbiter_impl (
@@ -1443,6 +1444,13 @@ print(str)
         .val_o   ( arbiter_valid_noc2 ),
         .rdy_i   ( arbiter_ready_noc2 )
     );
+`else
+
+    assign arbiter_data_noc2 = processor_router_data_noc2;
+    assign arbiter_valid_noc2 = processor_router_valid_noc2;
+    assign router_processor_ready_noc2 = arbiter_ready_noc2;
+
+`endif
 
     assign unavailable_o = 1'b0;
 
@@ -1614,6 +1622,7 @@ endgenerate
         .rtap_srams_bist_data (rtap_srams_bist_data)
     );
 
+`ifdef PITON_MEMTILE_ENABLE
     noc3_demux noc3_demux_impl (
         .clk_i        ( clk_gated                   ),
         .rst_ni       ( rst_n_f                     ),
@@ -1627,6 +1636,14 @@ endgenerate
         .acc_val_o    ( acc_resp_valid              ),
         .acc_rdy_i    ( acc_resp_ready              )
     );
+
+`else
+
+    assign demux_l2_noc3_valid = buffer_processor_valid_noc3;
+    assign demux_l2_noc3_data = buffer_processor_data_noc3;
+    assign processor_router_ready_noc3 = demux_l2_noc3_ready;
+
+`endif
 
     ////////////////////////////////////
     // Uncore Configuration Registers //

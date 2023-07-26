@@ -1550,7 +1550,7 @@ module chip(
     print(assign + edge_assign)
     print("`endif")    
 
-
+    print ("`ifdef PITON_MEMTILE_ENABLE");
     for i in range(PITON_Y_TILES):
       template=r'''
       vnoc #(
@@ -1574,13 +1574,11 @@ module chip(
    ''''
       vnoc = template.replace("IDD", repr(i));
       print(vnoc)
-
-
-
-
+    print("`endif")
 
 %>
 
+`ifdef PITON_MEMTILE_ENABLE
 
 generate
 for (x =0; x<= `PITON_X_TILES; x++) begin : XX_
@@ -1621,7 +1619,7 @@ for (x =0; x<= `PITON_X_TILES; x++) begin : XX_
 end
 endgenerate
 
-
+`endif
 
 endmodule
 
