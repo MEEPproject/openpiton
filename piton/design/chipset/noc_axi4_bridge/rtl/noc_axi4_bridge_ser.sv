@@ -29,6 +29,7 @@
 `include "mc_define.h"
 `include "define.tmp.h"
 `include "noc_axi4_bridge_define.vh"
+import noc_axi4_bridge_pkg::*;
 
 
 module noc_axi4_bridge_ser #(
@@ -43,17 +44,18 @@ module noc_axi4_bridge_ser #(
   output in_rdy, 
 
   output [`NOC_DATA_WIDTH-1:0] flit_out, 
-  output flit_out_val, 
+  output  flit_out_val, 
   input flit_out_rdy 
 );
 
 // states
 reg [1:0] state;
-localparam ACCEPT      = 2'd0;
+localparam ACCEPT = 2'd0;
 localparam SEND_HEADER = 2'd1;
-localparam SEND_DATA   = 2'd2;
+localparam SEND_DATA = 2'd2;
 
-reg [`AXI4_DATA_WIDTH     -1:0] data_in_f;
+reg [`AXI4_DATA_WIDTH-1:0] data_in_f;
+reg [`NOC_DATA_WIDTH-1:0] resp_header;
 reg [`MSG_DATA_SIZE_WIDTH -1:0] dat_size_log_f;
 reg [`NOC_DATA_WIDTH      -1:0] data_swapped;
 
@@ -64,7 +66,6 @@ reg [`MSG_LENGTH_WIDTH-1:0] remaining_flits;
 assign flit_out_val = (state == SEND_HEADER) || (state == SEND_DATA);
 assign in_rdy = (state == ACCEPT);
 
-reg [`NOC_DATA_WIDTH-1:0] resp_header;
 always @(posedge clk)
   if(~rst_n) state <= ACCEPT;
   else
@@ -99,9 +100,12 @@ always @(posedge clk)
       end
     endcase // state
 
-reg [$clog2(`AXI4_DATA_WIDTH/8)-1:0] dat_offset;
-reg [`MSG_DATA_SIZE_WIDTH      -1:0] dat_size_log;
-always @(*) noc_extractSize(header_in, dat_size_log, dat_offset);
+wire [`MSG_DATA_SIZE_WIDTH -1:0] dat_size_log;
+noc_extractSize ser_extractSize(
+                .header  (header_in),
+                .size_log(dat_size_log));
+
+wire [`MSG_LENGTH_WIDTH-1:0] dat_payload_len = 1 << clip2zer($signed({1'b0,dat_size_log}) - $clog2(`NOC_DATA_WIDTH/8));
 
 always @(posedge clk)
         if (in_go) begin
@@ -124,7 +128,7 @@ always @(posedge clk)
             end
             `MSG_TYPE_NC_LOAD_REQ: begin
               resp_header[`MSG_TYPE    ]     <= `MSG_TYPE_NC_LOAD_MEM_ACK;
-              resp_header[`MSG_LENGTH  ]     <= `PAYLOAD_LEN; 
+              resp_header[`MSG_LENGTH  ]     <= dat_payload_len; // flexible data packet length, required for `define L2_SEND_NC_REQ
             end
             `MSG_TYPE_NC_STORE_REQ: begin
               resp_header[`MSG_TYPE    ]     <= `MSG_TYPE_NC_STORE_MEM_ACK;

@@ -33,41 +33,8 @@ from pyhplib import *
 import riscvlib
 import time
 
-if PITON_ARIANE:
+if PITON_RV64_PLATFORM:
   devices = pyhplib.ReadDevicesXMLFile()
-  core = "Ariane"
-  
-  # just use a default frequency for device tree generation if not defined
-  sysFreq = 50000000
-  if 'CONFIG_SYS_FREQ' in os.environ:
-    sysFreq = int(os.environ['CONFIG_SYS_FREQ'])
-
-  timeStamp = time.strftime("%b %d %Y %H:%M:%S", time.localtime())
-  gen_riscv_dts(devices, PITON_NUM_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['ARIANE_ROOT']+"/openpiton/bootrom/", timeStamp, core)
-  get_bootrom_info(devices, PITON_NUM_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['ARIANE_ROOT']+"/openpiton/bootrom/", timeStamp, core)
-%>
-
-<%
-DMBR_BIN_NUM = 10
-import pyhplib
-from riscvlib import *
-import os
-from pyhplib import *
-import riscvlib
-import time
-
-if PITON_LAGARTO:
-  devices = pyhplib.ReadDevicesXMLFile()
-  core = "Lagarto"
-  
-  # just use a default frequency for device tree generation if not defined
-  sysFreq = 50000000
-  if 'CONFIG_SYS_FREQ' in os.environ:
-    sysFreq = int(os.environ['CONFIG_SYS_FREQ'])
-
-  timeStamp = time.strftime("%b %d %Y %H:%M:%S", time.localtime())
-  gen_riscv_dts(devices, PITON_NUM_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['LAGARTO_ROOT']+"/openpiton/bootrom/", timeStamp, core)
-  get_bootrom_info(devices, PITON_NUM_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['LAGARTO_ROOT']+"/openpiton/bootrom/", timeStamp, core)
 %>
 
 module tile #(
@@ -79,6 +46,7 @@ module tile #(
     input wire [`NOC_CHIPID_WIDTH-1:0]  default_chipid,
     input wire [`NOC_X_WIDTH-1:0]       default_coreid_x,
     input wire [`NOC_Y_WIDTH-1:0]       default_coreid_y,
+    input wire [31:0]                   default_total_num_tiles,
     input wire [`JTAG_FLATID_WIDTH-1:0] flat_tileid,
 
     // UCB interface for test access port
@@ -91,9 +59,6 @@ s = '''
 
 
 `ifdef PITON_PRONOC
-	
-	
-	
 	input [`DATA_WIDTH-1:0] dataIn1,
 	input validIn1,
 	input yummyIn1,
@@ -204,7 +169,6 @@ s = '''
     output                              dyn2_yummyOut_E,
     output                              dyn2_yummyOut_W,
     output                              dyn2_yummyOut_S
-    
  `endif   
     
     //output [4:0]                        ec_dyn2\
@@ -239,30 +203,28 @@ if (PITON_NETWORK_CONFIG == "xbar_config"):
 print(s)
 %>
 
-`ifdef PITON_ARIANE
-    ,
+`ifdef PITON_RV64_PLATFORM
+`ifdef PITON_RV64_DEBUGUNIT
     // Debug
-    input                               debug_req_i,   // async debug request
-    output                              unavailable_o, // communicate whether the hart is unavailable (e.g.: power down)
+,   input                               debug_req_i    // async debug request
+,   output                              unavailable_o  // communicate whether the hart is unavailable (e.g.: power down)
+`endif // ifdef PITON_RV64_DEBUGUNIT
+
+`ifdef PITON_RV64_CLINT
     // CLINT
-    input                               timer_irq_i,   // Timer interrupts
-    input                               ipi_i,         // software interrupt (a.k.a inter-process-interrupt)
+,   input                               timer_irq_i    // Timer interrupts
+,   input                               ipi_i          // software interrupt (a.k.a inter-process-interrupt)
+`endif // ifdef PITON_RV64_CLINT
+
+`ifdef PITON_RV64_PLIC
     // PLIC
-    input   [1:0]                       irq_i          // level sensitive IR lines, mip & sip (async)
-`endif
+,   input   [1:0]                       irq_i          // level sensitive IR lines, mip & sip (async)
+`endif // ifdef PITON_RV64_PLIC
+`endif // ifdef PITON_RV64_PLATFORM
 
 `ifdef PITON_LAGARTO
-    ,
-    // Debug
-    input                               debug_req_i,   // async debug request
-    output                              unavailable_o, // communicate whether the hart is unavailable (e.g.: power down)
-    // CLINT
-    input                               timer_irq_i,   // Timer interrupts
-    input                               ipi_i,         // software interrupt (a.k.a inter-process-interrupt)
-    // PLIC
-    input   [1:0]                       irq_i,         // level sensitive IR lines, mip & sip (async)
     // PMU
-    output  [26:0]                      pmu_sig_o
+,   output  [26:0]                      pmu_sig_o
 `endif
 );
     // clock gating
@@ -503,9 +465,6 @@ end
 
 `ifdef PITON_PRONOC
 
-
-
-
      assign dataOut1  = buffer_router_data_noc1;
      assign validOut1 = buffer_router_valid_noc1;
      assign yummyOut1 = buffer_router_yummy_noc1;
@@ -529,9 +488,6 @@ end
      assign router_buffer_data_noc3 = dataIn3;
      assign router_buffer_data_val_noc3 = validIn3;
      assign router_buffer_consumed_noc3 = yummyIn3;
-
-
-
 
 `else
 
@@ -1040,11 +996,11 @@ end
 endgenerate
 generate
 if (TILE_TYPE == `ARIANE_RV64_TILE) begin : g_ariane_core
-`ifdef PITON_ARIANE
     //////////////////////
     // Ariane RV64 Core //
     //////////////////////
 
+`ifdef PITON_ARIANE
 
     // TODO: add debug module and CLINT
 
@@ -1179,6 +1135,7 @@ print("    assign ariane_bootaddr  =  64'h%s;" % bootAddr)
     ariane_verilog_wrap #(
 <%
 str = '''
+        // .NrPMPEntries           ( 4    ),
         .DmBaseAddress          ( 64'h%s ),
         .SwapEndianess          ( 1'b1 ),
         .NrExecuteRegionRules   ( %d   ),
@@ -1465,7 +1422,7 @@ endgenerate
         // config regs
         .config_csm_en(config_csm_en),
         .config_hmt_base(config_hmt_base),
-        .config_system_tile_count_5_0(config_system_tile_count[5:0]),
+        .config_system_tile_count(config_system_tile_count),
         .config_home_alloc_method(config_home_alloc_method),
 
         // sram interfaces
@@ -1562,6 +1519,7 @@ endgenerate
         .default_chipid               (default_chipid               ),
         .default_coreid_x             (default_coreid_x             ),
         .default_coreid_y             (default_coreid_y             ),
+        .default_total_num_tiles      (default_total_num_tiles      ),
 
         .config_hmt_base              (config_hmt_base              ),
 

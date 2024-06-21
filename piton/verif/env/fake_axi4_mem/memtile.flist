@@ -3,7 +3,7 @@
 
 
 // for MOCK
-../../../design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge.sv
+../../../design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge.v
 ../../../design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_buffer.sv
 ../../../design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_ser.sv
 ../../../design/chipset/noc_axi4_bridge/rtl/noc_axi4_bridge_deser.sv

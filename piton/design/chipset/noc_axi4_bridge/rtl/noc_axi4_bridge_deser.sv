@@ -29,11 +29,11 @@
 `include "mc_define.h"
 `include "define.tmp.h"
 `include "noc_axi4_bridge_define.vh"
+import noc_axi4_bridge_pkg::*;
 
 
 module noc_axi4_bridge_deser #(
-  parameter SWAP_ENDIANESS = 0, // swap endianess, needed when used in conjunction with a little endian core like Ariane
-  parameter NOC2AXI_DESER_ORDER = 0 // NOC words to AXI word deserialization order
+  parameter SWAP_ENDIANESS = 0 // swap endianess, needed when used in conjunction with a little endian core like Ariane
 ) (
   input clk, 
   input rst_n, 
@@ -49,28 +49,30 @@ module noc_axi4_bridge_deser #(
   input  out_rdy
 );
 
-reg [2:0] state;
 localparam ACCEPT_W1   = 3'd0;
 localparam ACCEPT_W2   = 3'd1;
 localparam ACCEPT_W3   = 3'd2;
 localparam ACCEPT_DATA = 3'd3;
 localparam SEND        = 3'd4;
 
-reg [`NOC_DATA_WIDTH  -1:0] pkt_w1;
-reg [`NOC_DATA_WIDTH  -1:0] pkt_w2;
-reg [`NOC_DATA_WIDTH  -1:0] pkt_w3;
-reg [`NOC_DATA_WIDTH  -1:0] in_data_buf[`PAYLOAD_LEN-1:0]; //buffer for incomming packets
-reg [`MSG_LENGTH_WIDTH-1:0] remaining_flits; //flits remaining in current packet
+reg [`NOC_DATA_WIDTH-1:0]           pkt_w1;
+reg [`NOC_DATA_WIDTH-1:0]           pkt_w2;
+reg [`NOC_DATA_WIDTH-1:0]           pkt_w3; 
+reg [`MSG_LENGTH_WIDTH-1:0]         remaining_flits; //flits remaining in current packet
+reg [2:0]                           state;
 
 assign flit_in_rdy = (state != SEND) & phy_init_done;
 wire flit_in_go = flit_in_val & flit_in_rdy;
 assign out_val = (state == SEND);
 
-reg [$clog2(`AXI4_DATA_WIDTH/8)-1:0] dat_offset;
-reg [`MSG_DATA_SIZE_WIDTH      -1:0] dat_size_log;
-always @(*) noc_extractSize(header_out, dat_size_log, dat_offset);
+wire [`MSG_DATA_SIZE_WIDTH -1:0] dat_size_log;
+noc_extractSize deser_extractSize(
+                .header  (header_out),
+                .size_log(dat_size_log));
+
 wire [`NOC_DATA_WIDTH -1:0] data_swapped = SWAP_ENDIANESS ? swapData(flit_in, dat_size_log) :
                                                                      flit_in;
+reg [$clog2(`PAYLOAD_LEN)-1 :0] dat_flit;
 always @(posedge clk)
   if(~rst_n) state <= ACCEPT_W1;
   else
@@ -80,6 +82,8 @@ always @(posedge clk)
           state <= ACCEPT_W2;
           remaining_flits <= flit_in[`MSG_LENGTH]-1;
           pkt_w1 <= flit_in;  
+          dat_flit <= 0;
+          data_out <= `AXI4_DATA_WIDTH'h0;
         end
       end
       ACCEPT_W2: begin
@@ -107,10 +111,12 @@ always @(posedge clk)
           else begin
             state <= ACCEPT_DATA;
             remaining_flits <= remaining_flits - 1;
+            dat_flit <= dat_flit + 1;
           end
         end
-        if (flit_in_val)
-          in_data_buf[remaining_flits] <= data_swapped;
+        if (flit_in_val) begin
+          data_out[dat_flit * `NOC_DATA_WIDTH +: `NOC_DATA_WIDTH] <= data_swapped;
+        end
       end
       SEND: begin
         if (out_rdy)
@@ -127,11 +133,5 @@ always @(posedge clk)
     endcase // state
 
 assign header_out = {pkt_w3, pkt_w2, pkt_w1};
-
-reg [$clog2(`PAYLOAD_LEN) :0] itr_flt;
-always @(*)
-  for (itr_flt = 0; itr_flt <= (`PAYLOAD_LEN-1); itr_flt = itr_flt+1)
-    data_out[itr_flt * `NOC_DATA_WIDTH +: `NOC_DATA_WIDTH] = NOC2AXI_DESER_ORDER ? in_data_buf[                  itr_flt] :
-                                                                                   in_data_buf[`PAYLOAD_LEN -1 - itr_flt];
 
 endmodule

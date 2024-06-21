@@ -1,4 +1,15 @@
 #--------------------------------------------
+# Timing constraints for CDC in DDR SDRAM user interface, particularly in NOC - DDR AXI transition (fifo, reset) 
+set sys_ck [get_clocks -of_objects [get_pins -hierarchical meep_shell/sys_clk]]
+set mem_ck [get_clocks -of_objects [get_pins -hierarchical meep_shell/mem_clk]]
+# set_false_path -from $xxx_clk -to $yyy_clk
+# controlling resync paths to be less than source clock period
+# (-datapath_only to exclude clock paths)
+set_max_delay -datapath_only -from $mem_ck -to $sys_ck [expr [get_property -min period $mem_ck] * 0.9]
+set_max_delay -datapath_only -from $sys_ck -to $mem_ck [expr [get_property -min period $sys_ck] * 0.9]
+#--------------------------------------------
+
+#--------------------------------------------
 ## DDR4 RDIMM Controller 0, 72-bit Data Interface, x4 Componets, Single Rank
 ##     <<<NOTE>>> DQS Clock strobes have been swapped from JEDEC standard to match Xilinx MIG Clock order:
 ##                JEDEC Order   DQS ->  0  9  1 10  2 11  3 12  4 13  5 14  6 15  7 16  8 17
@@ -321,8 +332,3 @@ set_property PACKAGE_PIN BM29              [ get_ports  {ddr_dqs_c[1]} ]       ;
 set_property IOSTANDARD DIFF_POD12_DCI     [ get_ports  {ddr_dqs_c[1]} ]       ;# Bank  64 VCCO - VCC1V2 Net "DDR4_C0_DQS_C9"  - IO_L1N_T0L_N1_DBC_64
 set_property PACKAGE_PIN BM28              [ get_ports  {ddr_dqs_t[1]} ]       ;# Bank  64 VCCO - VCC1V2 Net "DDR4_C0_DQS_T9"  - IO_L1P_T0L_N0_DBC_64
 set_property IOSTANDARD DIFF_POD12_DCI     [ get_ports  {ddr_dqs_t[1]} ]       ;# Bank  64 VCCO - VCC1V2 Net "DDR4_C0_DQS_T9"  - IO_L1P_T0L_N0_DBC_64
-
-set_property PACKAGE_PIN BJ44 [ get_ports "mc_clk_n" ]  ;# Bank  65 VCCO - VCC1V2 Net "SYSCLK0_N" - IO_L12N_T1U_N11_GC_A09_D25_65
-set_property IOSTANDARD  LVDS [ get_ports "mc_clk_n" ]  ;# Bank  65 VCCO - VCC1V2 Net "SYSCLK0_N" - IO_L12N_T1U_N11_GC_A09_D25_65
-set_property PACKAGE_PIN BJ43 [ get_ports "mc_clk_p" ]  ;# Bank  65 VCCO - VCC1V2 Net "SYSCLK0_P" - IO_L12P_T1U_N10_GC_A08_D24_65
-set_property IOSTANDARD  LVDS [ get_ports "mc_clk_p" ]  ;# Bank  65 VCCO - VCC1V2 Net "SYSCLK0_P" - IO_L12P_T1U_N10_GC_A08_D24_65

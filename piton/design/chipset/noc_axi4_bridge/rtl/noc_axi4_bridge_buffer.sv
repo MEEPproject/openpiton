@@ -31,7 +31,43 @@
 `include "noc_axi4_bridge_define.vh"
 
 
+package noc_axi4_bridge_pkg;
+function automatic integer clip2zer;
+  input integer val;
+  clip2zer = val < 0 ? 0 : val;
+endfunction
+
+function automatic [`NOC_DATA_WIDTH -1:0] swapData;
+  input [           `NOC_DATA_WIDTH -1:0] data;
+  input [`MSG_DATA_SIZE_WIDTH       -1:0] size_log;
+  reg [  `MSG_DATA_SIZE_WIDTH       -1:0] swap_granlty_log;
+  reg [$clog2(`NOC_DATA_WIDTH/8)    -1:0] swap_granlty;
+  reg [$clog2(`NOC_DATA_WIDTH/8)      :0] itr_swp;
+  reg [$clog2(`NOC_DATA_WIDTH/8)    -1:0] swap_granlties;
+  reg [$clog2(`NOC_DATA_WIDTH/8)      :0] itr_grn;
+  reg [$clog2(`NOC_DATA_WIDTH/8)    -1:0] lo_swap_idx;
+  reg [$clog2(`NOC_DATA_WIDTH/8)    -1:0] hi_swap_idx;
+  begin
+    // limiting swapping granularity to data width
+    swap_granlty_log = size_log < $clog2(`NOC_DATA_WIDTH/8) ? size_log : $clog2(`NOC_DATA_WIDTH/8);
+
+    swap_granlties = ((`NOC_DATA_WIDTH/8) >> swap_granlty_log) - 1;
+    swap_granlty   = (                 1  << swap_granlty_log) - 1;
+
+    for (itr_grn = 0; itr_grn <= swap_granlties; itr_grn = itr_grn+1)
+    for (itr_swp = 0; itr_swp <= swap_granlty  ; itr_swp = itr_swp+1) begin
+      lo_swap_idx =  (itr_grn << swap_granlty_log) +                itr_swp;
+      hi_swap_idx =  (itr_grn << swap_granlty_log) + swap_granlty - itr_swp;
+      swapData[lo_swap_idx*8 +: 8] = data[hi_swap_idx*8 +: 8];
+    end
+  end
+endfunction
+endpackage
+
+import noc_axi4_bridge_pkg::*;
+
 module noc_axi4_bridge_buffer #(
+    parameter AXI4_DAT_WIDTH_USED = `AXI4_DATA_WIDTH, // actually used AXI Data width (down converted if needed)
     parameter ADDR_OFFSET = `AXI4_ADDR_WIDTH'h0,
     parameter ADDR_SWAP_LBITS = 0,                  // number of moved low bits in AXI address for memory interleaving
     parameter ADDR_SWAP_MSB   = `AXI4_ADDR_WIDTH-1, // high position to put moved bits in AXI address
@@ -44,53 +80,76 @@ module noc_axi4_bridge_buffer #(
     parameter RDWR_INORDER = 0,
     // "Outstanding requests" queue parameters
     parameter NUM_REQ_OUTSTANDING_LOG2 = 2, // "Outstanding requests" queue size
-    parameter OUTSTAND_QUEUE_BRAM = 1, // "Outstanding requests" queue is implemented on BRAM
+    parameter OUTSTAND_QUEUE_BRAM = 0, // "Outstanding requests" queue is implemented on BRAM (using Xilinx true 2-port BRAM synth template)
     parameter NUM_REQ_MSHRID_LBIT = 0, // particular NOC fields to participate in AXI ID
     parameter NUM_REQ_MSHRID_BITS = 0,
     parameter NUM_REQ_YTHREADS = 1, // high component of number of "Outstanding requests" threads
     parameter NUM_REQ_XTHREADS = 1, // low  component of number of "Outstanding requests" threads
     parameter SRCXY_AS_AXIID   = 0 // defines NOC tile x/y field to use for forming AXI ID (INI_X/Y by default)
 ) (
-  input clk,
-  input rst_n,
+    // ======== Buffer simplified structure ========
+    //
+    // Input request queue
+    // (depth = `NOC_AXI4_BRIDGE_IN_FLIGHT_LIMIT)
+    //                     _________                             ____________
+    //                        | | | |                           |Address/Data|
+    //  NOC deser in  ------> | | | | ------------------------> | Conversion | ------> AXI read/write requests
+    //                     ___|_|_|_|  |                        |____________|
+    //                                 |
+    //                                 |
+    //                                 | Outstanding request queue
+    //                                 | (depth = 1<<NUM_REQ_OUTSTANDING_LOG2)
+    //                                 |      _________
+    //                                 |         | | | |          __________
+    //                                 --------> | | | | ------> |          |
+    //                                        ___|_|_|_|         |   Data   |
+    //                                                           |Conversion| ------>  NOC ser out
+    //  AXI read/write responses  -----------------------------> |__________|
+    //
+    // =============================================
+
+  input clk, 
+  input rst_n, 
   input uart_boot_en, 
   output reg axi_id_deadlock,
 
   // from deserializer
-  input [`MSG_HEADER_WIDTH-1:0] deser_header,
-  input [`AXI4_DATA_WIDTH -1:0] deser_data,
-  input  deser_val,
-  output deser_rdy,
+  input [`MSG_HEADER_WIDTH-1:0] deser_header, 
+  input [`AXI4_DATA_WIDTH-1:0] deser_data, 
+  input deser_val, 
+  output  deser_rdy,
 
   // read request out
   output [`AXI4_ADDR_WIDTH-1:0] read_req_addr,
+  output [`MSG_DATA_SIZE_WIDTH-1:0] read_req_size_log,
   output [`AXI4_ID_WIDTH  -1:0] read_req_id,
-  output read_req_val,
+  output read_req_val, 
   input  read_req_rdy,
 
   // read response in
-  input [`AXI4_DATA_WIDTH-1:0] read_resp_data,
+  input [`AXI4_DATA_WIDTH-1:0] read_resp_data, 
   input [`AXI4_ID_WIDTH  -1:0] read_resp_id,
-  input  read_resp_val,
-  output read_resp_rdy,
+  input read_resp_val, 
+  output  read_resp_rdy,
 
   // write request out
   output [`AXI4_ADDR_WIDTH-1:0] write_req_addr,
+  output [`MSG_DATA_SIZE_WIDTH-1:0] write_req_size_log,
   output [`AXI4_ID_WIDTH  -1:0] write_req_id,
-  output [`AXI4_DATA_WIDTH-1:0] write_req_data,
+  output [`AXI4_DATA_WIDTH-1:0] write_req_data, 
   output [`AXI4_STRB_WIDTH-1:0] write_req_strb,
-  output write_req_val,
+  output write_req_val, 
   input  write_req_rdy,
 
   // write response in
   input [`AXI4_ID_WIDTH-1:0] write_resp_id,
-  input  write_resp_val,
-  output write_resp_rdy,
+  input write_resp_val, 
+  output  write_resp_rdy,
 
   // in serializer
-  output [`MSG_HEADER_WIDTH-1:0] ser_header,
-  output [`AXI4_DATA_WIDTH -1:0] ser_data,
-  output ser_val,
+  output [`MSG_HEADER_WIDTH-1:0] ser_header, 
+  output [`AXI4_DATA_WIDTH-1:0] ser_data, 
+  output ser_val, 
   input  ser_rdy
 );
 
@@ -164,7 +223,7 @@ assign deser_rdy = (pkt_state_buf[fifo_in] == INVALID);
 wire [`AXI4_DATA_WIDTH-1:0] wdata;
 
 // Xilinx-synthesizable Simple Dual Port Single Clock RAM
-xilinx_simple_dual_port_1_clock_ram #(
+bram_sdp_1ck #(
     .RAM_WIDTH(`AXI4_DATA_WIDTH),                 // Specify RAM data width
     .RAM_DEPTH(`NOC_AXI4_BRIDGE_IN_FLIGHT_LIMIT), // Specify RAM depth (number of entries)
     .RAM_PERFORMANCE("LOW_LATENCY")               // Select "HIGH_PERFORMANCE" or "LOW_LATENCY" 
@@ -202,6 +261,23 @@ wire [`MSG_DATA_SIZE_WIDTH -1:0] data_size  = req_header[`MSG_DATA_SIZE];
 wire [`MSG_LENGTH_WIDTH    -1:0] msg_length = req_header[`MSG_LENGTH];
 
 
+// Transformation of write data according to queueed request
+wire [$clog2(`AXI4_DATA_WIDTH/8)-1:0] req_offset;
+wire [`MSG_DATA_SIZE_WIDTH      -1:0] req_size_log;
+noc_extractSize req_extractSize(
+                .header  (req_header),
+                .size_log(req_size_log),
+                .offset  (req_offset));
+
+assign read_req_size_log  = req_size_log;
+assign write_req_size_log = req_size_log;
+
+wire [$clog2(`AXI4_DATA_WIDTH/8) :0] req_size = 1 << req_size_log;
+wire [`AXI4_STRB_WIDTH-1:0] wstrb = ({`AXI4_STRB_WIDTH'h0,1'b1} << req_size) -`AXI4_STRB_WIDTH'h1;
+assign write_req_data = wdata << (8*req_offset[$clog2(AXI4_DAT_WIDTH_USED/8)-1:0]);
+assign write_req_strb = wstrb <<    req_offset[$clog2(AXI4_DAT_WIDTH_USED/8)-1:0];
+
+
 wire [`PHY_ADDR_WIDTH -1:0] virt_addr = req_header[`MSG_ADDR];
 wire [`AXI4_ADDR_WIDTH-1:0] phys_addr;
 
@@ -224,25 +300,13 @@ generate
     assign req_addr = {addr[`AXI4_ADDR_WIDTH-1 : ADDR_SWAP_MSB                  ],
                        addr[ADDR_SWAP_LSB     +: ADDR_SWAP_LBITS                ], // Low address part moved up
                        addr[ADDR_SWAP_MSB-1    : ADDR_SWAP_LSB + ADDR_SWAP_LBITS], // High address part shifted down
-                       addr[ADDR_SWAP_LSB-1    : 6], 6'b0};
+                       addr[ADDR_SWAP_LSB-1    : 0]} & ({`AXI4_ADDR_WIDTH{1'b1}} << req_size_log);
   else
-    assign req_addr = {addr[`AXI4_ADDR_WIDTH-1 : 6], 6'b0};
+    assign req_addr =  addr                          & ({`AXI4_ADDR_WIDTH{1'b1}} << req_size_log);
 endgenerate
 
 assign read_req_addr  = req_addr;
 assign write_req_addr = req_addr;
-
-
-// Transformation of write data according to queueed request
-reg [$clog2(`AXI4_DATA_WIDTH/8)-1:0] wr_offset;
-reg [`MSG_DATA_SIZE_WIDTH      -1:0] wr_size_log;
-always @(*) noc_extractSize(req_header, wr_size_log, wr_offset);
-
-wire [$clog2(`AXI4_DATA_WIDTH/8) :0] wr_size = 1 << wr_size_log;
-wire [`AXI4_STRB_WIDTH-1:0] wstrb = ({`AXI4_STRB_WIDTH'h0,1'b1} << wr_size) -`AXI4_STRB_WIDTH'h1;
-
-assign write_req_data = wdata << (8*wr_offset);
-assign write_req_strb = wstrb <<    wr_offset;
 
 
 //
@@ -295,8 +359,8 @@ always @(posedge clk)
     if (outstnd_vrt_empt || outstnd_abs_rdptr_val) begin
       // Higher priority for Read response in case we have not already started working with the Write response ID some earlier,
       // In order to change priority two following strings should be exchanged (the condition is symmetrical)
-      if (write_resp_val_act && !(read_resp_val_act  && full_resp_id == full_rd_resp_id)) full_resp_id <= full_wr_resp_id;
-      if (read_resp_val_act  && !(write_resp_val_act && full_resp_id == full_wr_resp_id)) full_resp_id <= full_rd_resp_id;
+      if (write_resp_val_act && !(read_resp_val_act  && (full_resp_id == full_rd_resp_id))) full_resp_id <= full_wr_resp_id;
+      if (read_resp_val_act  && !(write_resp_val_act && (full_resp_id == full_wr_resp_id))) full_resp_id <= full_rd_resp_id;
 
       if (write_resp_val_act ||
           read_resp_val_act) resp_val <= 1'b1;
@@ -445,7 +509,7 @@ wire [OUTSTND_HDR_WIDTH-1 : 0] save_header = {outstnd_req_cnt,outstnd_vrt_wrptr,
 generate
 if (OUTSTAND_QUEUE_BRAM) begin: outstand_queue_bram
 // Xilinx-synthesizable True Dual Port RAM, Write_First, Single Clock
-xilinx_true_dual_port_write_first_1_clock_ram #(
+bram_tdp_1ck_wrfirst #(
     .RAM_WIDTH(OUTSTND_HDR_WIDTH),    // Specify RAM data width
     .RAM_DEPTH(1 << NUM_REQ_OUTSTANDING_LOG2),  // Specify RAM depth (number of entries)
     .RAM_PERFORMANCE("LOW_LATENCY")   // Select "HIGH_PERFORMANCE" or "LOW_LATENCY"
@@ -496,20 +560,23 @@ assign read_resp_rdy  = stor_hdr_en & ser_rdy & ~stor_command;
 assign write_resp_rdy = stor_hdr_en & ser_rdy &  stor_command;
 
 // Transformation of read data according to outstanded request
-reg [$clog2(`AXI4_DATA_WIDTH/8)-1:0] rd_offset;
-reg [`MSG_DATA_SIZE_WIDTH      -1:0] rd_size_log;
-always @(*) noc_extractSize(stor_header[`MSG_HEADER_WIDTH-1:0], rd_size_log, rd_offset);
+wire [$clog2(`AXI4_DATA_WIDTH/8)-1:0] stor_offset;
+wire [`MSG_DATA_SIZE_WIDTH      -1:0] stor_size_log;
+noc_extractSize stor_extractSize(
+                .header  (stor_header[`MSG_HEADER_WIDTH-1:0]),
+                .size_log(stor_size_log),
+                .offset  (stor_offset));
 
-wire [`AXI4_DATA_WIDTH-1:0] rdata_offseted = read_resp_data >> (8*rd_offset);
+wire [`AXI4_DATA_WIDTH-1:0] rdata_offseted = read_resp_data >> (8*stor_offset[$clog2(AXI4_DAT_WIDTH_USED/8)-1:0]);
 
-wire [$clog2(`AXI4_DATA_WIDTH/8) :0] rd_size = 1 << rd_size_log;
-wire [`AXI4_DATA_WIDTH -1:0] rdata = rd_size[0] ? {64 {rdata_offseted[0  +: `AXI4_DATA_WIDTH/64]}} :
-                                     rd_size[1] ? {32 {rdata_offseted[0  +: `AXI4_DATA_WIDTH/32]}} :
-                                     rd_size[2] ? {16 {rdata_offseted[0  +: `AXI4_DATA_WIDTH/16]}} :
-                                     rd_size[3] ? {8  {rdata_offseted[0  +: `AXI4_DATA_WIDTH/8 ]}} :
-                                     rd_size[4] ? {4  {rdata_offseted[0  +: `AXI4_DATA_WIDTH/4 ]}} :
-                                     rd_size[5] ? {2  {rdata_offseted[0  +: `AXI4_DATA_WIDTH/2 ]}} :
-                                     rd_size[6] ?      rdata_offseted     : `AXI4_DATA_WIDTH'h0;
+wire [$clog2(`AXI4_DATA_WIDTH/8) :0] stor_size = 1 << stor_size_log;
+wire [`AXI4_DATA_WIDTH -1:0] rdata = stor_size[0] ? {64 {rdata_offseted[0  +: `AXI4_DATA_WIDTH/64]}} :
+                                     stor_size[1] ? {32 {rdata_offseted[0  +: `AXI4_DATA_WIDTH/32]}} :
+                                     stor_size[2] ? {16 {rdata_offseted[0  +: `AXI4_DATA_WIDTH/16]}} :
+                                     stor_size[3] ? {8  {rdata_offseted[0  +: `AXI4_DATA_WIDTH/8 ]}} :
+                                     stor_size[4] ? {4  {rdata_offseted[0  +: `AXI4_DATA_WIDTH/4 ]}} :
+                                     stor_size[5] ? {2  {rdata_offseted[0  +: `AXI4_DATA_WIDTH/2 ]}} :
+                                     stor_size[6] ?      rdata_offseted     : `AXI4_DATA_WIDTH'h0;
 
 assign ser_val    = stor_hdr_en;
 assign ser_data   = stor_command ? `AXI4_DATA_WIDTH'b0 : rdata;
@@ -580,4 +647,17 @@ ila_axi_protocol_checker ila_axi_protocol_checker (
 );
 */
 
+endmodule
+
+module noc_extractSize (
+  input  [`MSG_HEADER_WIDTH         -1:0] header,
+  output [`MSG_DATA_SIZE_WIDTH      -1:0] size_log,
+  output [$clog2(`AXI4_DATA_WIDTH/8)-1:0] offset
+);
+  wire [`PHY_ADDR_WIDTH-1:0] virt_addr = header[`MSG_ADDR];
+  wire uncacheable = (virt_addr[`PHY_ADDR_WIDTH-1]) ||
+                     (header[`MSG_TYPE] == `MSG_TYPE_NC_LOAD_REQ) ||
+                     (header[`MSG_TYPE] == `MSG_TYPE_NC_STORE_REQ);
+  assign size_log = uncacheable ? header[`MSG_DATA_SIZE] - 1 : $clog2(`AXI4_DATA_WIDTH/8);
+  assign offset   = uncacheable ? virt_addr : 0;
 endmodule

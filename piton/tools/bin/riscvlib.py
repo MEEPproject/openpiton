@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python3
 # Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright 2019 ETH Zurich and University of Bologna.
 # Copyright and related rights are licensed under the Solderpad Hardware
@@ -13,23 +13,29 @@
 # Author: Michael Schaffner <schaffner@iis.ee.ethz.ch>, ETH Zurich
 # Date: 04.02.2019
 # Description: Device tree generation script for OpenPiton+Ariane.
-# Modification:
-# Date: 01/09/2021
-# Accept Lagarto as CPU
 
 
 import pyhplib
 import os
 import subprocess
 from pyhplib import *
+import time
 
 # this prints some system information, to be printed by the bootrom at power-on
-# dts path needs to be chosen in the caller process
-def get_bootrom_info(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, timeStamp, core):
+def get_bootrom_info(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, timeStamp):
 
     gitver_cmd = "git log | grep commit -m1 | LD_LIBRARY_PATH= awk -e '{print $2;}'"
     piton_ver  = subprocess.check_output([gitver_cmd], shell=True)
-    core_ver = subprocess.check_output(["cd %s && %s" % (dtsPath, gitver_cmd)], shell=True)
+
+    if os.getenv("PITON_ARIANE") is not None:
+      if int(os.getenv("PITON_ARIANE")):
+        core = "Ariane"
+        core_ver = subprocess.check_output(["cd %s && %s" % (os.environ['ARIANE_ROOT'],  gitver_cmd)], shell=True)
+
+    if os.getenv("PITON_LAGARTO") is not None:
+      if int(os.getenv("PITON_LAGARTO")):
+        core = "Lagarto"
+        core_ver = subprocess.check_output(["cd %s && %s" % (os.environ['LAGARTO_ROOT'], gitver_cmd)], shell=True)
 
     # get length of memory
     memLen  = 0
@@ -128,20 +134,22 @@ def _reg_fmt(addrBase, addrLen, addrCells, sizeCells):
 
     return tmpStr
 
-def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, timeStamp, core):
+def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, timeStamp):
 
     assert nCpus >= 1
 
-
     # Core dependant parameters  
-    if core == "Lagarto":
-        riscv_isa = "rv64imafdcv"
-        dts_core = "lagarto"
-        org = "BSC"
-    elif core == "Ariane":
+    if os.getenv("PITON_ARIANE") is not None:
+      if int(os.getenv("PITON_ARIANE")):
+        core = "cva6"
         riscv_isa = "rv64imafdc"
-        dts_core = "ariane"
-        org = "eth"
+        org = "openhwgroup"
+
+    if os.getenv("PITON_LAGARTO") is not None:
+      if int(os.getenv("PITON_LAGARTO")):
+        core = "Lagarto"
+        riscv_isa = "rv64imafdcv"
+        org = "BSC"
 
     # get UART base
     uartBase = 0xDEADBEEF
@@ -149,7 +157,6 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
         if devices[i]["name"] == "uart":
             uartBase = devices[i]["base"]
 
-    ethClkFreq = 156250000
 
     tmpStr = '''// DTS generated with gen_riscv_dts(...)
 // OpenPiton + %s framework
@@ -160,24 +167,32 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
 / {
     #address-cells = <2>;
     #size-cells = <2>;
-    compatible = "%s,%s-bare-dev";
-    model = "%s,%s-bare";
-    // TODO: interrupt-based UART is currently very slow
-    // with this configuration. this needs to be fixed.
+    u-boot,dm-pre-reloc;
+    compatible = "openpiton,cva6platform";
+
     chosen {
-         //stdout-path = "/soc/uart@%08x:115200";
-         //bootargs = "console=ttyS0,115200";
+    u-boot,dm-pre-reloc;
+    stdout-path = "uart0:115200";
     };
+
+    aliases {
+        u-boot,dm-pre-reloc;
+        console = &uart0;
+        serial0 = &uart0;
+    };
+
     cpus {
         #address-cells = <1>;
         #size-cells = <0>;
+        u-boot,dm-pre-reloc;
         timebase-frequency = <%d>;
-    ''' % (core, timeStamp, org, core, org, core, uartBase, timeBaseFreq)
+    ''' % (core, timeStamp, timeBaseFreq)
 
     for k in range(nCpus):
         tmpStr += '''
         CPU%d: cpu@%d {
             clock-frequency = <%d>;
+            u-boot,dm-pre-reloc;
             device_type = "cpu";
             reg = <%d>;
             status = "okay";
@@ -206,11 +221,12 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
             addrLen  = devices[i]["length"]
             tmpStr += '''
     memory@%08x {
+        u-boot,dm-pre-reloc;
         device_type = "memory";
         reg = <%s>;
     };
             ''' % (addrBase, _reg_fmt(addrBase, addrLen, 2, 2))
-    
+
     for i in range(len(devices)):
         if devices[i]["name"] == "dma_pool":
             addrBase = devices[i]["base"]
@@ -237,23 +253,14 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
             ''' % (_reg_fmt(addrBase, addrFrag, 2, 2),
                    _reg_fmt(addrOnic, addrFrag, 2, 2))
             #''' % (addrBase, _reg_fmt(addrBase, addrLen, 2, 2))
+
     tmpStr += '''
     eth0_clk: eth0_clk {
         compatible = "fixed-clock";
         #clock-cells = <0>;
-        clock-frequency = <%d>;
+        clock-frequency = <156250000>;
     };
-        ''' % (ethClkFreq)
-
-
-    tmpStr += '''
-    soc {
-        #address-cells = <2>;
-        #size-cells = <2>;
-        compatible = "%s,%s-bare-soc", "simple-bus";
-        ranges;
-    ''' % (org, core)
-
+    '''
 
     # TODO: this needs to be extended
     # get the number of interrupt sources
@@ -264,9 +271,8 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
     devWithIrq = ["uart", "net"];
     for i in range(len(devices)):
         if devices[i]["name"] in devWithIrq:
+            numIrqs += 1
             if devices[i]["name"] == "net":
-                numIrqs += 2
-            else:
                 numIrqs += 1
 
 
@@ -279,6 +285,7 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
             addrLen  = devices[i]["length"]
             tmpStr += '''
         clint@%08x {
+            u-boot,dm-pre-reloc;
             compatible = "riscv,clint0";
             interrupts-extended = <''' % (addrBase)
             for k in range(nCpus):
@@ -294,6 +301,7 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
             addrLen  = devices[i]["length"]
             tmpStr += '''
         PLIC0: plic@%08x {
+            u-boot,dm-pre-reloc;
             #address-cells = <0>;
             #interrupt-cells = <1>;
             compatible = "riscv,plic0";
@@ -307,29 +315,38 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
             riscv,ndev = <%d>;
         };
             ''' % (_reg_fmt(addrBase, addrLen, 2, 2), numIrqs)
-        # DTM
-        if devices[i]["name"] == "ariane_debug" or devices[i]["name"] == "lagarto_debug":
-            addrBase = devices[i]["base"]
-            addrLen  = devices[i]["length"]
 
         # UART
+        # TODO: update uart sequence numbers
         if devices[i]["name"] == "uart":
             addrBase = devices[i]["base"]
             addrLen  = devices[i]["length"]
             tmpStr += '''
-        uart@%08x {
+        uart0: uart@%08x {
+            u-boot,dm-pre-reloc;
             compatible = "ns16550";
             reg = <%s>;
             clock-frequency = <%d>;
             current-speed = <115200>;
-            device_type = "serial";
             interrupt-parent = <&PLIC0>;
             interrupts = <%d>;
-            reg-offset = <0x1000>;
             reg-shift = <0>; // regs are spaced on 8 bit boundary (modified from Xilinx UART16550 to be ns16550 compatible)
         };
             ''' % (addrBase, _reg_fmt(addrBase, addrLen, 2, 2), periphFreq, ioDeviceNr)
             ioDeviceNr+=1
+
+        # sd card
+        if devices[i]["name"] == "sd":
+            addrBase = devices[i]["base"]
+            addrLen  = devices[i]["length"]
+            tmpStr += '''
+        sdhci_0: sdhci@%08x {
+            u-boot,dm-pre-reloc;
+            status = "okay";
+            compatible = "openpiton,piton-mmc";
+            reg = <%s>;
+        };
+            ''' %(addrBase, _reg_fmt(addrBase, addrLen, 2, 2))
 
         # Ethernet
         if devices[i]["name"] == "net":
@@ -381,20 +398,31 @@ def gen_riscv_dts(devices, nCpus, cpuFreq, timeBaseFreq, periphFreq, dtsPath, ti
                 xlnx,device-id = <0x00>;
                 xlnx,include-dre;            
             };
-        
         };
             ''' % (addrBase, _reg_fmt(addrBase, addrLen, 2, 2), ioDeviceNr, ioDeviceNr+1, dmaChannelMM2S, ioDeviceNr, dmaChannelS2MM, ioDeviceNr+1)
             ioDeviceNr+=2                       
 
     tmpStr += '''
-    };
 };
     '''
 
-    # this needs to match // 20/08/2022: This doesn't match if the device has more than 1 interrupt, as the Ethernet DMA
-    # assert ioDeviceNr-1 == numIrqs
+    # this needs to match
+    assert ioDeviceNr-1 == numIrqs
 
-    with open(dtsPath + '/' + dts_core + '.dts','w') as file:
+    with open(dtsPath + '/rv64_platform.dts','w+') as file:
         file.write(tmpStr)
 
+def main():
+    devices = pyhplib.ReadDevicesXMLFile()
 
+    # just use a default frequency for device tree generation if not defined
+    sysFreq = 50000000
+    if 'CONFIG_SYS_FREQ' in os.environ:
+        sysFreq = int(os.environ['CONFIG_SYS_FREQ'])
+
+    timeStamp = time.strftime("%b %d %Y %H:%M:%S", time.localtime())
+    gen_riscv_dts(devices, PITON_NUM_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['DV_ROOT']+"/design/chipset/rv64_platform/bootrom/", timeStamp)
+    get_bootrom_info(devices, PITON_NUM_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['DV_ROOT']+"/design/chipset/rv64_platform/bootrom/", timeStamp)
+
+if __name__ == "__main__":
+    main()

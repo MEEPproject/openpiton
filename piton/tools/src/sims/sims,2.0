@@ -144,7 +144,6 @@ Getopt::Long::Configure ('no_auto_abbrev') ;
         'jobcommand_name' => "sim_command",
         'dryrun' => 0,
         'dv_root' => "",
-        'env_base' => "",
         'fast_boot' => 0,
         'finish_mask' => "",
         'flist' => [],
@@ -214,6 +213,7 @@ Getopt::Long::Configure ('no_auto_abbrev') ;
         'rv64_mabi=s' => "",
         'rv64_march=s' => "",
         'rv64_target_triple=s' => "",
+        'rv64_platform' => 0,
         'other_sim_build' => 0,
         'sim_build_args' => [],
         'other_sim_build_cmd' => "",
@@ -225,20 +225,13 @@ Getopt::Long::Configure ('no_auto_abbrev') ;
         'sims_config' => "",
         'simslog' => 1,
         'simslog_name' => "sims.log",
-        'sjm' => 0,
-        'sjm_diag_name' => "",
-        'sjm_diag_path' => "",
-        'sjm_diag_root' => [],
         'sparcv9' => 0,
-        'stub_mask' => "",
         'sys' => "",
         'tg_seed' => -1,
         'tmp_dir' => ".",
         'toplevel' => [],
         'tarcopy' => 0,
         'use_config' => 1,
-        'vcd' => 0,
-        'vcdfile' => "",
         'vcs_build' => 0,
         'vcs_build_args' => [],
         'clean' => 0,
@@ -254,7 +247,6 @@ Getopt::Long::Configure ('no_auto_abbrev') ;
         'vcs_use_cm' => 0,
         'vcs_use_cli' => 0,
         'vcs_use_initreg' => 0,
-        'vcs_use_sdf' => 0,
         'vlt_build' => 0,
         'vlt_build_args' => [],
         'vlt_run' => 0,
@@ -373,6 +365,7 @@ GetOptions (\%opt,
             'sparcv9!',
             'rv32!',
             'rv64!',
+            'rv64_platform!',
             'regress!',
             'regress_id=s',
             'report!',
@@ -413,7 +406,7 @@ push (@{$opt{config_cpp_args}}, "-DFLIST_LAGARTO")  if ($opt{lagarto}) ;
 push (@{$opt{config_cpp_args}}, "-DFLIST_ORAM")     if ($opt{oram}) ;
 push (@{$opt{config_cpp_args}}, "-DVERILATOR")      if ($opt{vlt_build}) ;
 # Other boards may be added here for simple MC/UART/Ethernet access simulation
-push (@{$opt{config_cpp_args}}, "-DALVEO280")       if (($opt{board}) and ($opt{board} eq "alveou280")) ;
+push (@{$opt{config_cpp_args}}, "-DALVEO_BOARD")    if (($opt{board}) and (($opt{board} eq "alveou280") || ($opt{board} eq "alveou55c") || ($opt{board} eq "alveou250"))) ;
 push (@{$opt{config_cpp_args}}, "-DUART_BOOT")      if ($opt{uart_dmw}) ;
 push (@{$opt{config_cpp_args}}, "-DETH_CORE")       if ($opt{eth}) ;
 push (@{$opt{config_cpp_args}}, "-DHBM_DEF")        if ($opt{hbm}) ;
@@ -1177,8 +1170,6 @@ sub gen_config
 	if ( -f "${param_path}/noc_localparam.v") {
 		rename ("${param_path}/noc_localparam.v","${param_path}/noc_localparam.v.tmp");
 	}
-  
- 
 }
 
 ################################################################################
@@ -1260,7 +1251,7 @@ sub gen_flist
         # print("\$linetmp is $linetmp\n");
         if (-e $linepyv) {
           # print("original is $line\n");
-          system("pyhp.py $linepyv > $linetmpout");
+          !system("pyhp.py $linepyv > $linetmpout") or die("Error running PyHP for $linepyv\n");;
           $line = $linetmp . "\n";
         }
       }
@@ -1351,34 +1342,25 @@ sub pre_build
 
   system("cp -f flist $cur_dir");
 
-  if($opt{ariane}) {
-    print "compiling DTS and bootroms for Ariane...\n";
-    !system("cd $ENV{ARIANE_ROOT}/openpiton/bootrom/baremetal && make clean && make all && cd - > /dev/null") or
-      die (" Error compiling DTS for ariane.");
-    !system("cd $ENV{ARIANE_ROOT}/openpiton/bootrom/linux && make clean && make all MAX_HARTS=$ENV{PITON_NUM_TILES} && cd - > /dev/null") or
-      die (" Error compiling DTS for ariane.");
+  if($opt{rv64_platform}) {
+    print "compiling rv64 DTS and bootroms...\n";
+    !system("cd $ENV{DV_ROOT}/design/chipset/rv64_platform/bootrom/baremetal && make clean && make all && cd - > /dev/null") or
+      die (" Error compiling rv64 DTS.");
+    !system("cd $ENV{DV_ROOT}/design/chipset/rv64_platform/bootrom/linux && make clean && make all MAX_HARTS=$ENV{PITON_NUM_TILES} && cd - > /dev/null") or
+      die (" Error compiling rv64 DTS.");
     print "done\n";
     # currently we have two sources (hardcoded in chipset_impl): UART and Ethernet
     my $num_sources = 2;
     # 2 targets per core (M/S mode)
     my $num_targets = 2 * $ENV{PITON_NUM_TILES};
-    print "generating PLIC for Ariane with $num_targets targets and $num_sources sources...\n";
-    !system("cd $ENV{ARIANE_ROOT}/src/rv_plic/rtl && ./gen_plic_addrmap.py -t $num_targets -s $num_sources > plic_regmap.sv") or
-      die (" Error generating PLIC for Ariane.");
-    print "done\n";
-  }
 
-  if($opt{lagarto}) {
-    print "compiling DTS and bootroms for Lagarto..\n";
-    !system("cd $ENV{LAGARTO_ROOT}/openpiton/bootrom/baremetal && make clean && make all && cd - > /dev/null") or
-      die (" Error compiling DTS (baremetal) for Lagarto.");
-    !system("cd $ENV{LAGARTO_ROOT}/openpiton/bootrom/linux && make clean && make all MAX_HARTS=$ENV{PITON_NUM_TILES} && cd - > /dev/null") or
-      die (" Error compiling DTS (Linux) for Lagarto.");
-    print "done\n";
-    # currently we have two sources (hardcoded in chipset_impl): UART and Ethernet
-    my $num_sources = 2;
-    # 2 targets per core (M/S mode)
-    my $num_targets = 2 * $ENV{PITON_NUM_TILES};
+    if($opt{ariane}) {
+    print "generating PLIC for rv64 platform with $num_targets targets and $num_sources sources...\n";
+    !system("cd $ENV{ARIANE_ROOT}/src/rv_plic/rtl && ./gen_plic_addrmap.py -t $num_targets -s $num_sources > plic_regmap.sv") or
+      die (" Error generating PLIC for rv64 platform.");
+    }
+
+    if($opt{lagarto}) {
     print "generating PLIC for Lagarto with $num_targets targets and $num_sources sources...\n";
     !system("cd $ENV{LAGARTO_ROOT}/src/rv_plic/rtl && ./gen_plic_addrmap.py -t $num_targets -s $num_sources > plic_regmap.sv") or
       die (" Error generating PLIC for Lagarto.");
@@ -1386,6 +1368,7 @@ sub pre_build
     print "generating signature generator for Lagarto...\n";
     !system("cd $ENV{LAGARTO_ROOT}/torture/src/models/cxx && ./build.sh ") or
       die (" Error generating signature generator for Lagarto.");
+    }
     print "done\n";
   }
 
@@ -1408,10 +1391,6 @@ sub generic_sim_build
     chdir $model_path or die ("DIE. Can't cd to $model_path") ;
 
     if ($opt{vcs_build} or $opt{ncv_build}) {
-      # copy the sdf file
-      my $sdf_file = "$opt{env_base}/cmp_top.sdf" ;
-      `cp -f $sdf_file .` if (($opt{vcs_use_sdf}) and (-f $sdf_file)) ;
-
       chomp(my $vcsd = "vcsd".$proj_vars{vcsprefix});
       $vcsd =~ s/(vcsd)vcs(\d+)\.(\d+).*/$1$2$3/;
       my $vcsd_tab = "vcsd.tab";
@@ -1468,7 +1447,6 @@ sub generic_sim_build
         push(@{$opt{vcs_build_args}}, "-top $top_n") ;
       }
 
-      push (@{$opt{vcs_build_args}}, "+compsdf") if ($opt{vcs_use_sdf}) ;
       push (@{$opt{vcs_build_args}}, "+initreg") if ($opt{vcs_use_initreg}) ;
       push (@{$opt{vcs_build_args}}, "-cm $opt{vcs_cm_args}") if ($opt{vcs_use_cm}) ;
       push (@{$opt{vcs_build_args}}, "-cm_cond $opt{vcs_cm_cond}") if ($opt{vcs_use_cm} and ($opt{vcs_cm_cond} ne "")) ;
@@ -1487,12 +1465,6 @@ sub generic_sim_build
       push (@{$opt{vcs_build_args}}, "+lint=all,noVCDE,noVNGS,noPCTIO-L,noPCTIO");
       push (@{$opt{vcs_build_args}}, "+warn=all");
       push (@{$opt{vcs_build_args}}, "-l compile.log") ;
-
-      # some SystemVerilog-specific options
-      if ($opt{ariane} | $opt{lagarto}) {
-          push (@{$opt{vcs_build_args}}, "-sverilog +systemverilogext+.sv") ;
-          push (@{$opt{vcs_build_args}}, "-ntb_opts uvm-1.1 +vpi ") ;
-      }
 
       if ($opt{ibm}) {
           push (@{$opt{config_rtl}}, "IBM_SRAM_RF16X160_MODEL_CHECKER") ;
@@ -1601,8 +1573,6 @@ sub generic_sim_build
           push (@{$opt{sim_build_args}}, $x);
       }
     }
-    
-    
 
     if ($opt{ncv_build}) {
       $ld_lib_path .= "$ENV{DV_ROOT}/tools/";
@@ -1626,10 +1596,6 @@ sub generic_sim_build
       # lib_path needs to be before vcs_build_args
       $build_cmd .= $lib_path;
 
-      # the ariane files do not contain the timescale
-      if ($opt{ariane} | $opt{lagarto}) {
-        $build_cmd .= " -timescale=1ps/1ps ";
-      }
       if ($opt{metro_mpi_build}) {
         $build_cmd .= "-CFLAGS -DX_TILES=$opt{x_tiles} " ;
         $build_cmd .= "-CFLAGS -DY_TILES=$opt{y_tiles} " ;
@@ -1688,8 +1654,6 @@ sub generic_sim_build
       }    
 	}
 
-
-	
     if ($opt{vlt_build}) {
       $build_cmd = "verilator -cc " ;
       $build_cmd .= "-exe $dv_root/tools/verilator/my_top.cpp " ;
@@ -1698,12 +1662,14 @@ sub generic_sim_build
       $build_cmd .= "$dv_root/tools/pli/iop/iob_main.cc " ;
       $build_cmd .= "$dv_root/tools/pli/iop/iob.cc " ;
       $build_cmd .= "$dv_root/tools/pli/iop/cpx.cc " ;
-      $build_cmd .= "$dv_root/toolsi/pli/iop/pcx.cc " ;
+      $build_cmd .= "$dv_root/tools/pli/iop/pcx.cc " ;
       $build_cmd .= "$ENV{LAGARTO_ROOT}/torture/src/models/cxx/dpi_torture.cpp " ;
       $build_cmd .= "--top-module cmp_top " ;
-      $build_cmd .= "-Wno-fatal --trace -Wno-lint -Wno-style -Wno-STMTDLY -Wno-TIMESCALEMOD " ;
+      $build_cmd .= "-Wno-fatal " ;
+      $build_cmd .= "--trace -Wno-lint -Wno-style -Wno-STMTDLY " ;
       $build_cmd .= "--exe --trace-structs --trace-underscore " ;
       $build_cmd .= "-Wno-BLKANDNBLK " ;
+      $build_cmd .= "-Wno-TIMESCALEMOD " ;
       $build_cmd .= "-DPITON_DPI " ;
       $build_cmd .= "--unroll-count 256 " ;
       $build_cmd .= "-CFLAGS -DVERILATOR " ;
@@ -1798,7 +1764,6 @@ sub generic_sim_run
     die ("DIE. obj_dir/ not found in $model_path") if ($opt{vlt_run} and ! -d "$model_path/obj_dir") ;
     die ("DIE. obj_dir/ not found in $model_path") if ($opt{metro_mpi_run} and ! -d "$model_path/obj_dir") ;
 
-
     # pass the good trap and bad trap addresses to the testbench
     my $good_trap = "";
     my $bad_trap = "";
@@ -1844,33 +1809,11 @@ sub generic_sim_run
       $ncvcommand = "\"run\"";
     }
 
-    if ($opt{vcd}) {
-      my $vcdfile = "";
-      if ($opt{vcdfile} eq "") {
-        $vcdfile = "$opt{tmp_dir}/sim.vcd.$$" ;
-      } elsif ( $opt{vcdfile} =~ /^\// ) {  ## full path name specified -- use file name as is
-        $vcdfile = $opt{vcdfile} ;
-      } else { ## relative path specified -- use name under tmp dir
-        $vcdfile = "$opt{tmp_dir}/$opt{vcdfile}.$$" ;
-      }
-
-      if ($opt{ncv_run}) {
-        $ncvcommand = "\"database -open \"myvcd\" -vcd -into \"$vcdfile\"; ";
-        $ncvcommand .= "probe -create -vcd -database myvcd cmp_top -all -depth all; ";
-        $ncvcommand .= "run\""
-      } else {
-        push (@{$opt{sim_run_args}}, "+vcd") ;
-        push (@{$opt{sim_run_args}}, "-vcd $vcdfile") ;
-      }
-    } else {
-      push (@{$opt{sim_run_args}}, "+vcs+dumpvarsoff") ;
-    }
-
     # convert -args to +args
     push (@{$opt{sim_run_args}}, "+finish_mask=$opt{finish_mask}") if ($opt{finish_mask} ne "") ;
-    push (@{$opt{sim_run_args}}, "+stub_mask=$opt{stub_mask}") if ($opt{stub_mask} ne "") ;
     push (@{$opt{sim_run_args}}, "+TIMEOUT=$opt{rtl_timeout}") if ($opt{rtl_timeout}) ;
     push (@{$opt{sim_run_args}}, "+max_cycle=$opt{max_cycle}") if ($opt{max_cycle}) ;
+
     push (@{$opt{sim_run_args}}, "+disable_l2_mon") if ($opt{no_verbose}) ;
     push (@{$opt{sim_run_args}}, "+disable_l15_mon") if ($opt{no_verbose}) ;
     push (@{$opt{sim_run_args}}, "+tso_mon=0") if ($opt{no_verbose}) ;
@@ -1964,9 +1907,9 @@ sub generic_sim_run
       $cmd .= "-lib ";
       $cmd .= "$model_path/work ";
       if ($opt{cov}) {
-        $cmd .= "-do \"coverage save -onexit $opt{asm_diag_name}.ucdb; run -all\" ";
+      $cmd .= "-do \"coverage save -onexit $opt{asm_diag_name}.ucdb; run -all\" ";
       } else {
-        $cmd .= "-do \"run -all\" ";
+      $cmd .= "-do \"run -all\" ";
       }
 
       foreach my $top_n (@{$opt{toplevel}}) {
@@ -2139,13 +2082,6 @@ my $mpi_ov=" ";
       print PERFLOG "$prg: sim_start $main::sim_start" ;
       print PERFLOG "$prg: sim_stop $main::sim_stop" ;
       close (PERFLOG) ;
-    }
-
-    # copy over vcd dump
-
-    if (-f "$opt{tmp_dir}/$opt{vcdfile}") {
-      `mv $opt{tmp_dir}/$opt{vcdfile} sim.vcd`;
-      die ("DIE. unable to move sim.vcd over\n") if ($?) ;
     }
 }
 
@@ -2429,7 +2365,7 @@ sub assemble_diag
     `rm -rf diag.pal diag.s diag.S diag.pl diag.exe mem.image diag.ev symbol.tbl` ;
     die "DIE. could not clean up assembly diag run area"  if ($?) ;
 
-    # add default path to look for precompiled RISCV 64bit assembly tests diags in case of ariane
+    # add default path to look for precompiled RISCV 64bit assembly tests diags
     if (($opt{ariane} | $opt{lagarto}) and $opt{precompiled}) {
       push @{$opt{asm_diag_root}}, "$ENV{ARIANE_ROOT}/tmp/riscv-tests/build/isa";
       push @{$opt{asm_diag_root}}, "$ENV{ARIANE_ROOT}/tmp/riscv-tests/build/benchmarks";
@@ -2440,9 +2376,6 @@ sub assemble_diag
       push @{$opt{asm_diag_root}}, "$ENV{LAGARTO_ROOT}/tmp/riscv-tests/build/benchmarks";
       push @{$opt{asm_diag_root}}, "$ENV{LAGARTO_ROOT}/tmp/riscv-torture/artifacts/torture";
     }
-
-
-
 
     # find diagnostic
     my $diag_full_path = &find_diag_path ($opt{asm_diag_name}, $opt{asm_diag_path}, $opt{asm_diag_root}) ;
@@ -2546,7 +2479,7 @@ sub assemble_diag
         $ENV{RV64_MARCH} = $opt{rv64_march} ;
       }
       if (!$opt{rv64_mabi}) {
-        if ($opt{ariane} ) {
+        if ($opt{ariane}) {
           $ENV{RV64_MABI} = "lp64d" ;
         }
         if ($opt{lagarto}) {
@@ -2882,7 +2815,6 @@ sub parse_args
             'dpi!',
             'dryrun!',
             'dv_root=s',
-            'env_base=s',
             'fast_boot!',
             'finish_mask=s',
             'flist=s@',
@@ -2938,6 +2870,7 @@ sub parse_args
             'rv64_mabi=s',
             'rv64_march=s',
             'rv64_target_triple=s',
+            'rv64_platform!',
             'other_sim_build!',
             'sim_build_args=s@',
             'other_sim_build_cmd=s',
@@ -2949,20 +2882,13 @@ sub parse_args
             'sims_config=s',
             'simslog!',
             'simslog_name=s',
-            'sjm!',
-            'sjm_diag_name=s',
-            'sjm_diag_path=s',
-            'sjm_diag_root=s@',
             'sparcv9!',
-            'stub_mask=s',
             'sys=s',
             'tg_seed=i',
             'tmp_dir=s',
             'toplevel=s@',
             'tarcopy!',
             'use_config!',
-            'vcd!',
-            'vcdfile=s',
             'vcs_build!',
             'vcs_build_args=s@',
             'clean!',
@@ -2978,7 +2904,6 @@ sub parse_args
             'vcs_use_cli!',
             'vcs_use_cm!',
             'vcs_use_initreg!',
-            'vcs_use_sdf!',
             'verbose!',
             'no_verbose!',
             'vfile=s@',
@@ -3051,15 +2976,21 @@ sub parse_args
     }
   }
 
+  # Patching Ariane submodule
+  if ($opt{ariane}) {
+    system("$ENV{DV_ROOT}/design/chip/tile/ariane_patch/ariane_patch.sh");
+  }
+
   # Considering board specific defines, needed when sims is run from protosyn, not to confuse it with their incorrect values
   if ($opt{board}) {
-    $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/design/xilinx";
-    $ENV{PROTOSYN_RUNTIME_BOARD} = $opt{board};
+  $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/design/xilinx";
+  $ENV{PROTOSYN_RUNTIME_BOARD} = $opt{board};
   }
   else {
-    $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/verif/env/manycore";
-    $ENV{PROTOSYN_RUNTIME_BOARD} = "";
+  $ENV{PROTOSYN_RUNTIME_DESIGN_PATH} = $ENV{DV_ROOT} . "/verif/env/manycore";
+  $ENV{PROTOSYN_RUNTIME_BOARD} = "";
   }
+
 
   # these arguments may not have any options associated with them
   foreach my $x (@ARGV) {
@@ -3070,34 +3001,16 @@ sub parse_args
     elsif ($x =~ /\.s\.gz/) { $opt{asm_diag_name}   = $x ; }
     elsif ($x =~ /\.image/) { $opt{image_diag_name} = $x ; }
     elsif ($x =~ /\.c/)     { $opt{asm_diag_name}   = $x ; }
-    else { die ("\nDIE. Unprocessed argument: $x") ; }
+    else { die ("DIE. Unprocessed argument: $x") ; }
   }
 
-  # Set ISA to choose compilation flow based on ISA
-  if ($opt{ost1}) {
-    $opt{sparcv9} = 1 ;
-    print "$prg: Building/running for sparcv9\n" ;
-  }
-  if ($opt{pico}) {
-    $opt{rv32} = 1 ;
-    print "$prg: Building/running for rv32\n" ;
-  }
-  if ($opt{ariane} | $opt{lagarto}) {
-    $opt{rv64} = 1 ;
-    print "$prg: Building/running for rv64\n" ;
-  }
-
-  # in case a precompiled riscv binary for ariane is directly specified
+  # in case a precompiled riscv binary is directly specified
   if ($opt{precompiled} and ($opt{rv32} | $opt{rv64})) {
     if (!($opt{asm_diag_name} =~ /\.riscv/)) {
         $opt{asm_diag_name} = fileparse($opt{asm_diag_name}, qr/\.[^.]*/);
     }
     print "$prg: looking for precompiled RISCV binary $opt{asm_diag_name}\n";
   }
-
-
-  # expand environment variables
-  $opt{env_base} =~ s/\$(\w+)/$ENV{$1}/g ;
 
   # if -nobuild specified disable all build options
   if ($opt{build} == 0) {
@@ -3157,7 +3070,7 @@ sub parse_args
   $ENV{PITON_PICO_HET} = $opt{pico_het};
   $ENV{PITON_ARIANE}   = $opt{ariane};
   $ENV{PITON_LAGARTO}  = $opt{lagarto};
-  push (@{$opt{config_rtl}}, "PITON_OST1")     if ($opt{ost1});
+  $ENV{PITON_RV64_PLATFORM}   = "1" if ($opt{rv64_platform});
   $ENV{PITON_PRONOC}   = $opt{pronoc};
   $ENV{SA_HEVC_ENABLE} = $opt{sa_hevc_enable};
   $ENV{SA_NN_ENABLE}   = $opt{sa_nn_enable};
@@ -3166,12 +3079,7 @@ sub parse_args
   $ENV{PITON_HBM_LAT}  = $opt{hbm_lat};
   $ENV{PITON_METRO_MPI}  = $opt{metro_mpi_build};
   $ENV{PITON_COVERAGE}  = $opt{cov};
-  push (@{$opt{config_rtl}}, "PITON_PICO")     if ($opt{pico});
-  push (@{$opt{config_rtl}}, "PITON_PICO")     if ($opt{pico_het});
   push (@{$opt{config_rtl}}, "PITON_PICO_HET") if ($opt{pico_het});
-  push (@{$opt{config_rtl}}, "PITON_ARIANE")   if ($opt{ariane});
-  push (@{$opt{config_rtl}}, "WT_DCACHE")      if ($opt{ariane});
-  push (@{$opt{config_rtl}}, "PITON_LAGARTO")  if ($opt{lagarto});
   push (@{$opt{config_rtl}}, "PITON_PRONOC")   if ($opt{pronoc});
   push (@{$opt{config_rtl}}, "PITON_SA_ENABLE")  if (($opt{sa_nn_enable}) || ($opt{sa_hevc_enable}));
   push (@{$opt{config_rtl}}, "SA_HEVC_ENABLE") if ($opt{sa_hevc_enable});
@@ -3249,8 +3157,6 @@ sub parse_args
  	
  	@mc_map = get_mc_mapping ($opt{x_tiles},$opt{y_tiles},$opt{multimc_indices},$ENV{PITON_EXTRA_MEMS},$ENV{PITON_NETWORK_CONFIG});
   }
-
-
 
 
 my $mmc_num= $ENV{PITON_EXTRA_MEMS};
@@ -3411,10 +3317,6 @@ if($opt{mgui_run}){
 
   # Push optional dmbr enable
   push (@{$opt{midas_args}}, "-DDMBR_ENABLE") if ($opt{dmbr});
-
-  # Push optional oram enable
-  push (@{$opt{config_rtl}}, "ORAM_ON") if ($opt{oram}) ;
-  push (@{$opt{sim_run_args}}, "+oram") if ($opt{oram}) ;
 
   if ($opt{vcs_build} or $opt{ncv_build} or $opt{riv_build}) {
       push(@{$opt{config_rtl}}, "OST1_PLI_SLAM_RANDOM") ;
@@ -3638,10 +3540,6 @@ VERILOG COMPILATION RELATED
            this feature works with -tg_seed to set the seed of the random
            initialization. this defaults to off.
 
-    -vcs_use_sdf/-novcs_use_sdf
-           build vcs model (simv) with an sdf file.
-           defaults to off.
-
     -vcs_use_cli/-novcs_use_cli
            use the +cli -line options when building a vcs model (simv).
            defaults to off.
@@ -3679,7 +3577,7 @@ VERILOG COMPILATION RELATED
            in this case, programs are compiled and assembled using midas
 
     -pico
-           this specifies that the PICORV32 core shall be used instead of OpenSPARC.
+           this specifies that the PICORV32 core shall be used
            in this case, programs are compiled and assembled using the RISCV GCC toolchain.
 
     -pico_het
@@ -3687,7 +3585,7 @@ VERILOG COMPILATION RELATED
            where every odd core is a PICORV32 core (along the x-dimension).
 
     -ariane
-           this specifies that the ARIANE RV64GC core shall be used instead of OpenSPARC.
+           this specifies that the ARIANE RV64GC core shall be used
            in this case, programs are compiled and assembled using the RISCV GCC toolchain.
     
     -pronoc
@@ -3709,7 +3607,7 @@ VERILOG COMPILATION RELATED
     -mgui_build
     	   this specifies that the simulator creates additional traffic monitoring files that can
     	   be used for traffic visualization using ManyGUI tool (https://github.com/kevinjohnmartin/manyGUI)
-    
+
     -metro_mpi_build
            this specifies that the simulator builds a verilator model, accelared using MPI. 
            The default is off. 
@@ -3717,35 +3615,23 @@ VERILOG COMPILATION RELATED
     -metro_mpi_build_args=OPTION
            metro_mpi (Verilator) compile options. multiple options can be specified using
            multiple such arguments.           
-           
+
     -hbm_lat
            this specifies that the simulator considers an estimated latency for packets read from HBM memory.
            without specifying this flag, the HBM memory (fake-memory module) has an ideal single-cycle read latency. 
-           
+
     -multimc=CHANNEL_NUMBER
            default is zero and embeds only one memory controller (MC) in chipset.  Given any inteher number
            greater than zero (n) results in n MCs connected to routers located in edges. Each router located in
            edge of the Mesh, can have maximum of one MC. The list of edge routers having MC should be given 
            using multimc_indices argument.
-           
+
     -multimc_indices'=             
            This defines where each MC should be placed. The input is the list of edge tile's IDs seprated by ','
            the tile ID is (Y_index * x_tiles) + X_index; The number of edge routers in multimc_indices should be
            equal to multimc
-           
+
 VERILOG RUNTIME RELATED
-
-    -vcd/-novcd
-           signals the bench to dump in VCD format
-
-    -vcdfile=filename
-           the name of the vcd dump file.  if the file name starts with
-           a "/", that is the file dumped to, otherwise, the actual file is
-           created under 'tmp_dir/vcdfile' and copied back to the current
-           directory when the simulation ends.  use "-vcdfile=`pwd`/filename"
-           to force the file to be written in the current directory directly
-           (not efficient since dumping is done over network instead of to
-           a local disk).
 
     -vcs_run/-novcs_run
            runs the vcs simulation (simv). defaults to off.
@@ -3793,7 +3679,7 @@ midas is the diag assembler
 
 RISCV GCC
 
-this is the compiler used for RISC-V cores (e.g., when the -pico or -ariane switches are specified).
+this is the compiler used for RISC-V cores
 
     -uart_dmw
            use this switch when compiling code for Pitonstream. this will add load
@@ -3802,7 +3688,7 @@ this is the compiler used for RISC-V cores (e.g., when the -pico or -ariane swit
 
     -precompiled
            specify this in order to use pre-built assembly tests and benchmarks from the RISC-V toolchain folder.
-           this basically adds the two search paths
+           combined with -ariane, this basically adds the two search paths
              $ENV{ARIANE_ROOT}/tmp/riscv-tests/build/isa
              $ENV{ARIANE_ROOT}/tmp/riscv-tests/build/benchmarks
            to @{$opt{asm_diag_root}}, and skips the compilation step.
@@ -3911,11 +3797,6 @@ MISC
            Simulation will be terminated by good_trap, if thread 1, 2 and
            3 hits the good_trap.
 
-    -stub_mask=MASK
-           mask for vcs simulation termination. Simulation ends when the
-           stub driving the relevant bit in the mask is asserted. This
-           is a hexadecimal value similar to -finish_mask
-
     -rtl_timeout
            passes a +TIMEOUT to the simv run.
            sets the number of clock cycles after all threads have become
@@ -3967,11 +3848,6 @@ IT SYSTEM RELATED
 
     -sims_config=FILE
             full path to sims config file
-
-    -env_base=PATH
-            this specifies the root directory for the bench environment.
-            it is typically defined in the bench config file. It has no
-            default.
 
     -config_cpp_args=OPTION
             this allows the user to provide CPP arguments (defines/undefines)

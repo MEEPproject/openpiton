@@ -28,8 +28,8 @@
 # This script performs general actions
 # for creating a Vivado project
 #
-# Boiler plate startup
 
+# Boiler plate startup
 set DV_ROOT $::env(DV_ROOT)
 set MEEP_ROOT $::env(MEEP_DIR)
 
@@ -57,7 +57,6 @@ if { [info exists "::env(MEEP_SHELL)"] } {
 puts "MEEP Shell protosyn flow completed"	
 exit
 } 
-
 
 # Create project
 create_project -force ${PROJECT_NAME} ${PROJECT_DIR}
@@ -104,19 +103,59 @@ foreach prj_file ${ALL_FILES} {
 }
 add_files -norecurse -fileset $fileset_obj $files_to_add
 
-#Generating IP cores for Alveo280 board
-if { $BOARD_DEFAULT_VERILOG_MACROS == "ALVEOU280_BOARD" } {
+#Generating IP cores for Alveo boards
+if { $BOARD_DEFAULT_VERILOG_MACROS == "ALVEO_BOARD" } {
 
-  # Generating PCIe-based Shell (to save BD: write_bd_tcl -force ../piton/design/chipset/meep/meep_shell.tcl)
+  # Create IP of Xilix MMCM and frequency setup
+  if {[info exists ::env(PROTOSYN_RUNTIME_BOARD)] && $::env(PROTOSYN_RUNTIME_BOARD)=="alveou250"} {
+    set BRD_FREQ 300
+  } else {
+    set BRD_FREQ 100
+  }
+  puts "Setting MMCM input frequency to ${BRD_FREQ}MHz "
+  set SYS_FREQ $env(SYSTEM_FREQ)
+  puts "Setting MMCM output frequency to ${SYS_FREQ}MHz "
+  create_ip -vendor xilinx.com -library ip -name clk_wiz -version 6.0 -module_name       clk_mmcm
+  set_property -dict [list CONFIG.PRIM_SOURCE {Differential_clock_capable_pin}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.PRIM_IN_FREQ                     "$BRD_FREQ"] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.OPTIMIZE_CLOCKING_STRUCTURE_EN        {true}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLKOUT2_USED                          {true}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLKOUT3_USED                          {true}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLK_OUT1_PORT                  {chipset_clk}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLK_OUT2_PORT                   {mc_sys_clk}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLK_OUT3_PORT                      {vpu_clk}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLKOUT1_REQUESTED_OUT_FREQ       "$SYS_FREQ"] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLKOUT2_REQUESTED_OUT_FREQ             {100}] [get_ips clk_mmcm]
+  set_property -dict [list CONFIG.CLKOUT3_REQUESTED_OUT_FREQ              {50}] [get_ips clk_mmcm]
+
+  # Create IP of Xilinx UART
+  create_ip -vendor xilinx.com -library ip -name axi_uart16550 -version 2.0 -module_name uart_16550
+
+  # Create IP of Xilinx AXI traffic generator
+  create_ip -vendor xilinx.com -library ip -name axi_traffic_gen -version 3.0 -module_name atg_uart_init
+  set_property -dict [list CONFIG.C_ATG_SYSTEM_INIT_ADDR_MIF "$DV_ROOT/design/chipset/io_ctrl/xilinx/$BOARD/ip_cores/atg_uart_init/uart_addr.coe"] [get_ips atg_uart_init]
+  set_property -dict [list CONFIG.C_ATG_SYSTEM_INIT_DATA_MIF "$DV_ROOT/design/chipset/io_ctrl/xilinx/$BOARD/ip_cores/atg_uart_init/uart_data.coe"] [get_ips atg_uart_init]
+  set_property -dict [list CONFIG.C_ATG_MODE {AXI4-Lite}]                                                                                          [get_ips atg_uart_init]
+
+  # Create IP of Xilinx async FIFO
+  create_ip -vendor xilinx.com -library ip -name fifo_generator -version 13.2 -module_name     afifo_w64_d128_std
+  set_property -dict [list CONFIG.Fifo_Implementation {Independent_Clocks_Block_RAM}] [get_ips afifo_w64_d128_std]
+  set_property -dict [list CONFIG.Input_Data_Width                              {64}] [get_ips afifo_w64_d128_std]
+  set_property -dict [list CONFIG.Input_Depth                                  {128}] [get_ips afifo_w64_d128_std]
+  set_property -dict [list CONFIG.Use_Embedded_Registers                     {false}] [get_ips afifo_w64_d128_std]
+  set_property -dict [list CONFIG.Enable_Safety_Circuit                      {false}] [get_ips afifo_w64_d128_std]
+
+  # Generating PCIe-based Shell
+  # (to save BD: write_bd_tcl -force -no_project_wrapper ../piton/design/chipset/meep/meep_shell.tcl)
   source $DV_ROOT/design/chipset/meep/meep_shell.tcl
 
+  # Generating JTAG Shell
+  # (to save BD: write_bd_tcl -force -no_project_wrapper ../piton/design/chipset/meep/jtag_shell.tcl)
+  source $DV_ROOT/design/chipset/meep/jtag_shell.tcl
+
   # Generating Ethernet system
-  source $DV_ROOT/design/chipset/xilinx/alveou280/ip_cores/eth_cmac_syst/eth_cmac_syst.tcl
-  cr_bd_Eth_CMAC_syst ""
-  make_wrapper -files [get_files ${PROJECT_DIR}/../bd/Eth_CMAC_syst/Eth_CMAC_syst.bd] -top
-  add_files -norecurse           ${PROJECT_DIR}/../bd/Eth_CMAC_syst/hdl/Eth_CMAC_syst_wrapper.v
-  #Use this script to save BD after editing
-  # source $DV_ROOT/design/chipset/xilinx/alveou280/ip_cores/eth_cmac_syst/write_eth_syst_bd.tcl
+  # (to save BD: write_bd_tcl -force -no_project_wrapper ../piton/design/chipset/io_ctrl/xilinx/common/ip_cores/eth_cmac_syst/eth_cmac_syst.tcl)
+  source $DV_ROOT/design/chipset/io_ctrl/xilinx/common/ip_cores/eth_cmac_syst/eth_cmac_syst.tcl
 }
 
 # Set 'sources_1' fileset file properties for local files
@@ -136,7 +175,7 @@ foreach inc_file $ALL_INCLUDE_FILES {
 foreach impl_file $ALL_RTL_IMPL_FILES {
     if {[file exists $impl_file]} {
         set file_obj [get_files -of_objects $fileset_obj [list "$impl_file"]]
-        if { [file extension $impl_file] == ".sv"} {
+        if {[file extension $impl_file] == ".sv"} {
           set_property "file_type" "SystemVerilog" $file_obj
         } else {
           set_property "file_type" "Verilog" $file_obj
@@ -149,11 +188,6 @@ foreach impl_file $ALL_RTL_IMPL_FILES {
         set_property "used_in_implementation" "1" $file_obj
         set_property "used_in_simulation" "1" $file_obj
         set_property "used_in_synthesis" "1" $file_obj
-       
-        # Outside the if else tree from above	
-        if {[file extension $impl_file] == ".vhd"} { 
-          set_property "file_type" "VHDL" $file_obj
-        }
     }
 }
 foreach coe_file $ALL_COE_FILES {
@@ -239,13 +273,16 @@ set_property "used_in_implementation" "1" $file_obj
 set_property "used_in_synthesis" "1" $file_obj
 
 
-add_files -fileset [get_filesets constrs_1] "$BOARD_DIR/hbm.xdc"
-add_files -fileset [get_filesets constrs_1] "$BOARD_DIR/ddr4.xdc"
-
-if { $env(ALVEO_ETH) eq "1"} {
+if { $BOARD_DEFAULT_VERILOG_MACROS == "ALVEO_BOARD" } {
+  if {[info exists ::env(PROTOSYN_RUNTIME_ETH)] &&
+                  $::env(PROTOSYN_RUNTIME_ETH)=="TRUE"} {
     add_files -fileset [get_filesets constrs_1] "$BOARD_DIR/ethernet.xdc"
+  }
+  if {![info exists ::env(PROTOSYN_RUNTIME_HBM)] ||
+                   $::env(PROTOSYN_RUNTIME_HBM)!="TRUE"} {
+    add_files -fileset [get_filesets constrs_1] "$BOARD_DIR/ddr4.xdc"
+  }
 }
-
 
 # Set 'constrs_1' fileset properties
 set_property "name" "constrs_1" $fileset_obj
@@ -289,10 +326,9 @@ set_property "verilog_uppercase" "0" $fileset_obj
 # Create 'synth_1' run (if not found)
 if {[string equal [get_runs -quiet synth_1] ""]} {
   if {$VIVADO_FLOW_PERF_OPT} {
-    create_run -name synth_1 -part ${FPGA_PART} -flow {Vivado Synthesis 2020} -strategy "Flow_PerfOptimized_high" -constrset constrs_1
+    create_run -name synth_1 -part ${FPGA_PART} -flow "Vivado Synthesis $VIVADO_VERSION" -strategy "Flow_PerfOptimized_high" -constrset constrs_1
   } else {
-
-    create_run -name synth_1 -part ${FPGA_PART} -flow {Vivado Synthesis 2020} -strategy "Vivado Synthesis Defaults" -constrset constrs_1
+    create_run -name synth_1 -part ${FPGA_PART} -flow "Vivado Synthesis $VIVADO_VERSION" -strategy "Vivado Synthesis Defaults" -constrset constrs_1
   }
 } else {
   if {$VIVADO_FLOW_PERF_OPT} {
@@ -300,18 +336,11 @@ if {[string equal [get_runs -quiet synth_1] ""]} {
   } else {
     set_property strategy "Vivado Synthesis Defaults" [get_runs synth_1]
   }
-
-  set_property flow "Vivado Synthesis 2020" [get_runs synth_1]
+  set_property flow "Vivado Synthesis $VIVADO_VERSION" [get_runs synth_1]
 }
 set fileset_obj [get_runs synth_1]
 set_property "constrset" "constrs_1" $fileset_obj
-if {$VIVADO_FLOW_PERF_OPT} {
-  set_property "description" "Higher performance designs, resource sharing is turned off, the global fanout guide is set to a lower number, FSM extraction forced to one-hot, LUT combining is disabled, equivalent registers are preserved, SRL are inferred  with a larger threshold" $fileset_obj
-} else {
-  set_property "description" "Vivado Synthesis Defaults" $fileset_obj
-}
-
-set_property "flow" "Vivado Synthesis 2020" $fileset_obj
+set_property "flow" "Vivado Synthesis $VIVADO_VERSION" $fileset_obj
 set_property "name" "synth_1" $fileset_obj
 set_property "needs_refresh" "0" $fileset_obj
 set_property "part" "${FPGA_PART}" $fileset_obj
@@ -321,43 +350,19 @@ if {$VIVADO_FLOW_PERF_OPT} {
 } else {
   set_property "strategy" "Vivado Synthesis Defaults" $fileset_obj
 }
+
+set_property STEPS.SYNTH_DESIGN.ARGS.RETIMING true [get_runs synth_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.FSM_EXTRACTION auto [get_runs synth_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.KEEP_EQUIVALENT_REGISTERS false [get_runs synth_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.RESOURCE_SHARING auto [get_runs synth_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.NO_LC false [get_runs synth_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.RETIMING true [get_runs synth_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.CONTROL_SET_OPT_THRESHOLD auto [get_runs synth_1]
+
 #set_property "incremental_checkpoint" "" $fileset_obj
 set_property "include_in_archive" "1" $fileset_obj
 set_property "steps.synth_design.tcl.pre" "" $fileset_obj
 set_property "steps.synth_design.tcl.post" "" $fileset_obj
-set_property "steps.synth_design.args.flatten_hierarchy" "rebuilt" $fileset_obj
-set_property "steps.synth_design.args.gated_clock_conversion" "off" $fileset_obj
-set_property "steps.synth_design.args.bufg" "12" $fileset_obj
-
-
-## This is not supported in Vivado 2020, need to check what is the alternative
-#if {$VIVADO_FLOW_PERF_OPT} {
-#  set_property "steps.synth_design.args.fanout_limit" "400" $fileset_obj
-#} else {
-#  set_property "steps.synth_design.args.fanout_limit" "10000" $fileset_obj
-#}
-set_property "steps.synth_design.args.directive" "Default" $fileset_obj
-if {$VIVADO_FLOW_PERF_OPT} {
-  set_property "steps.synth_design.args.fsm_extraction" "one_hot" $fileset_obj
-  set_property "steps.synth_design.args.keep_equivalent_registers" "1" $fileset_obj
-  set_property "steps.synth_design.args.resource_sharing" "off" $fileset_obj
-} else {
-  set_property "steps.synth_design.args.fsm_extraction" "auto" $fileset_obj
-  set_property "steps.synth_design.args.keep_equivalent_registers" "0" $fileset_obj
-  set_property "steps.synth_design.args.resource_sharing" "auto" $fileset_obj
-}
-set_property "steps.synth_design.args.control_set_opt_threshold" "auto" $fileset_obj
-if {$VIVADO_FLOW_PERF_OPT} {
-  set_property "steps.synth_design.args.no_lc" "1" $fileset_obj
-  set_property "steps.synth_design.args.shreg_min_size" "5" $fileset_obj
-} else {
-  set_property "steps.synth_design.args.no_lc" "0" $fileset_obj
-  set_property "steps.synth_design.args.shreg_min_size" "3" $fileset_obj
-}
-set_property "steps.synth_design.args.max_bram" "-1" $fileset_obj
-set_property "steps.synth_design.args.max_dsp" "-1" $fileset_obj
-set_property "steps.synth_design.args.cascade_dsp" "auto" $fileset_obj
-set_property -name {steps.synth_design.args.more options} -value {} -objects $fileset_obj
 
 # set the current synth run
 current_run -synthesis $fileset_obj
@@ -365,11 +370,9 @@ current_run -synthesis $fileset_obj
 # Create 'impl_1' run (if not found)
 if {[string equal [get_runs -quiet impl_1] ""]} {
   if {$VIVADO_FLOW_PERF_OPT} {
-
-    create_run -name impl_1 -part ${FPGA_PART} -flow {Vivado Implementation 2020} -strategy "Performance_Explore" -constrset constrs_1 -parent_run synth_1
+    create_run -name impl_1 -part ${FPGA_PART} -flow "Vivado Implementation $VIVADO_VERSION" -strategy "Performance_ExtraTimingOpt" -constrset constrs_1 -parent_run synth_1
   } else {
-
-    create_run -name impl_1 -part ${FPGA_PART} -flow {Vivado Implementation 2020} -strategy "Vivado Implementation Defaults" -constrset constrs_1 -parent_run synth_1
+    create_run -name impl_1 -part ${FPGA_PART} -flow "Vivado Implementation $VIVADO_VERSION" -strategy "Vivado Implementation Defaults" -constrset constrs_1 -parent_run synth_1
   }
 } else {
   if {$VIVADO_FLOW_PERF_OPT} {
@@ -377,18 +380,11 @@ if {[string equal [get_runs -quiet impl_1] ""]} {
   } else {
     set_property strategy "Vivado Implementation Defaults" [get_runs impl_1]
   }
-
-  set_property flow "Vivado Implementation 2020" [get_runs impl_1]
+  set_property flow "Vivado Implementation $VIVADO_VERSION" [get_runs impl_1]
 }
 set fileset_obj [get_runs impl_1]
 set_property "constrset" "constrs_1" $fileset_obj
-if {$VIVADO_FLOW_PERF_OPT} {
-  set_property "description" "Uses multiple algorithms for optimization, placement, and routing to get potentially better results." $fileset_obj
-} else {
-  set_property "description" "Vivado Implementation Defaults" $fileset_obj
-}
-
-set_property "flow" "Vivado Implementation 2020" $fileset_obj
+set_property "flow" "Vivado Implementation $VIVADO_VERSION" $fileset_obj
 set_property "name" "impl_1" $fileset_obj
 set_property "needs_refresh" "0" $fileset_obj
 if {[string equal ${BOARD_PART} ""] != 0} {
@@ -400,6 +396,7 @@ if {$VIVADO_FLOW_PERF_OPT} {
 } else {
   set_property "strategy" "Vivado Implementation Defaults" $fileset_obj
 }
+
 #set_property "incremental_checkpoint" "" $fileset_obj
 set_property "include_in_archive" "1" $fileset_obj
 set_property "steps.opt_design.is_enabled" "1" $fileset_obj
@@ -407,15 +404,11 @@ set_property "steps.opt_design.tcl.pre" "" $fileset_obj
 set_property "steps.opt_design.tcl.post" "" $fileset_obj
 set_property "steps.opt_design.args.verbose" "0" $fileset_obj
 if {$VIVADO_FLOW_PERF_OPT} {
-  set_property "steps.opt_design.args.directive" "Explore" $fileset_obj
+  set_property "steps.opt_design.args.directive" "ExploreWithRemap" $fileset_obj
 } else {
   set_property "steps.opt_design.args.directive" "Default" $fileset_obj
 }
 set_property -name {steps.opt_design.args.more options} -value {} -objects $fileset_obj
-set_property "steps.power_opt_design.is_enabled" "0" $fileset_obj
-set_property "steps.power_opt_design.tcl.pre" "" $fileset_obj
-set_property "steps.power_opt_design.tcl.post" "" $fileset_obj
-set_property -name {steps.power_opt_design.args.more options} -value {} -objects $fileset_obj
 set_property "steps.place_design.tcl.pre" "" $fileset_obj
 set_property "steps.place_design.tcl.post" "" $fileset_obj
 if {$VIVADO_FLOW_PERF_OPT} {
@@ -424,32 +417,32 @@ if {$VIVADO_FLOW_PERF_OPT} {
   set_property "steps.place_design.args.directive" "Default" $fileset_obj
 }
 set_property -name {steps.place_design.args.more options} -value {} -objects $fileset_obj
-set_property "steps.post_place_power_opt_design.is_enabled" "0" $fileset_obj
-set_property "steps.post_place_power_opt_design.tcl.pre" "" $fileset_obj
-set_property "steps.post_place_power_opt_design.tcl.post" "" $fileset_obj
-set_property -name {steps.post_place_power_opt_design.args.more options} -value {} -objects $fileset_obj
-set_property "steps.phys_opt_design.is_enabled" "0" $fileset_obj
-set_property "steps.phys_opt_design.tcl.pre" "" $fileset_obj
-set_property "steps.phys_opt_design.tcl.post" "" $fileset_obj
-if {$VIVADO_FLOW_PERF_OPT} {
-  set_property "steps.phys_opt_design.args.directive" "Explore" $fileset_obj
-} else {
-  set_property "steps.phys_opt_design.args.directive" "Default" $fileset_obj
-}
-set_property -name {steps.phys_opt_design.args.more options} -value {} -objects $fileset_obj
+
+set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
+set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore [get_runs impl_1]
+
 set_property "steps.route_design.tcl.pre" "" $fileset_obj
 set_property "steps.route_design.tcl.post" "" $fileset_obj
 if {$VIVADO_FLOW_PERF_OPT} {
- set_property "steps.route_design.args.directive" "Explore" $fileset_obj
+ set_property "steps.route_design.args.directive" "AggressiveExplore" $fileset_obj
 } else {
  set_property "steps.route_design.args.directive" "Default" $fileset_obj
 }
+
+set VIVADO_POSTROUTEPHYSOPT $::env(VIVADO_POSTROUTEPHYSOPT)
+if {$VIVADO_POSTROUTEPHYSOPT} {
+  set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
+  set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.TCL.POST {} [get_runs impl_1]
+  set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.DIRECTIVE ExploreWithAggressiveHoldFix [get_runs impl_1]
+} else {
+  set_property "steps.post_route_phys_opt_design.is_enabled" "0" $fileset_obj
+  set_property "steps.post_route_phys_opt_design.tcl.pre" "" $fileset_obj
+  set_property "steps.post_route_phys_opt_design.tcl.post" "" $fileset_obj
+  set_property "steps.post_route_phys_opt_design.args.directive" "Default" $fileset_obj
+  set_property -name {steps.post_route_phys_opt_design.args.more options} -value {} -objects $fileset_obj
+}
+
 set_property -name {steps.route_design.args.more options} -value {} -objects $fileset_obj
-set_property "steps.post_route_phys_opt_design.is_enabled" "0" $fileset_obj
-set_property "steps.post_route_phys_opt_design.tcl.pre" "" $fileset_obj
-set_property "steps.post_route_phys_opt_design.tcl.post" "" $fileset_obj
-set_property "steps.post_route_phys_opt_design.args.directive" "Default" $fileset_obj
-set_property -name {steps.post_route_phys_opt_design.args.more options} -value {} -objects $fileset_obj
 set_property "steps.write_bitstream.tcl.pre" "" $fileset_obj
 set_property "steps.write_bitstream.tcl.post" "" $fileset_obj
 set_property "steps.write_bitstream.args.raw_bitfile" "0" $fileset_obj
@@ -464,5 +457,6 @@ set_property -name {steps.write_bitstream.args.more options} -value {} -objects 
 # set the current impl run
 current_run -implementation $fileset_obj
 
-
 puts "INFO: Project created:${PROJECT_NAME}"
+
+

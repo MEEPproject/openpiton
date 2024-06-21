@@ -56,7 +56,6 @@ then
   # Commentted out, as it is not really an issue and it may fail when running the CICD
   echo "not in bash ($0)"
   #return
-
 fi
 
 SCRIPTNAME=ariane_setup.sh
@@ -83,7 +82,6 @@ export CXX=g++ CC=gcc
 if [ x$RISCV == x ]; then
   export RISCV=/home/tools/openpiton/riscv_install
 fi
-
 export VERILATOR_ROOT=$ARIANE_ROOT/tmp/verilator-4.014/
 
 # setup paths
@@ -92,7 +90,6 @@ export LIBRARY_PATH=$RISCV/lib
 export LD_LIBRARY_PATH=$RISCV/lib
 export C_INCLUDE_PATH=$RISCV/include:$VERILATOR_ROOT/include
 export CPLUS_INCLUDE_PATH=$RISCV/include:$VERILATOR_ROOT/include
-export MODELSIM_HOME=/apps/mentor/2020-21/RHELx86/QUESTA-CORE-PRIME_2020.4
 
 # source OpenPiton setup script
 # note: customize this script to reflect your tool setup

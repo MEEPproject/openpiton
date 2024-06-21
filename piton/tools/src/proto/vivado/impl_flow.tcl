@@ -1,4 +1,3 @@
-# Modified by Barcelona Supercomputing Center on March 3rd, 2022
 # Copyright (c) 2016 Princeton University
 # All rights reserved.
 #
@@ -28,6 +27,7 @@
 # This script kicks of an implementation
 # flow for the project
 #
+
 # Boiler plate startup
 set DV_ROOT $::env(DV_ROOT)
 set g_number_of_jobs $::env(NUM_VIVADO_JOBS)
@@ -42,32 +42,22 @@ puts "INFO: Using the following Verilog defines: ${ALL_VERILOG_MACROS}"
 # Open the project
 open_project ${VIVADO_PROJECT_FILE}
 
-
 # Update Verilog MACROs property
 set_property verilog_define ${ALL_VERILOG_MACROS} [get_fileset sources_1]
 set_property verilog_define ${ALL_VERILOG_MACROS} [get_fileset sim_1]
 
 # Some additional effort to meet timing
-set_property flow {Vivado Implementation 2020} [get_runs impl_1]
-set_property strategy Performance_ExtraTimingOpt [get_runs impl_1]
+#set_property flow "Vivado Implementation $VIVADO_VERSION" [get_runs impl_1]
+#set_property strategy Performance_ExtraTimingOpt [get_runs impl_1]
 
 # Dealing with Vivado case, when it locks IPs as old ones
 upgrade_ip [get_ips -all]
 
-# Set the correct frequency for the Xilix UART IP
-
-set UART_FREQ $env(SYSTEM_FREQ)
-puts "Setting AXI UART frequency to ${UART_FREQ}MHz "
-
-set_property -dict [list CONFIG.C_S_AXI_ACLK_FREQ_HZ_d "$UART_FREQ" CONFIG.C_S_AXI_ACLK_FREQ_HZ "${UART_FREQ}000000"] [get_ips uart_16550]
-
 # Extra open/close to make Vivado use defines for a project,
 # not only for synthesis
 close_project
-
-
 open_project ${VIVADO_PROJECT_FILE}
-
+auto_detect_xpm
 proc synthesis { g_root_dir g_number_of_jobs } {
 
         set number_of_jobs $g_number_of_jobs
@@ -109,5 +99,4 @@ if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
 } else {
     puts "INFO: Implementation passed!"
 }
-
 }

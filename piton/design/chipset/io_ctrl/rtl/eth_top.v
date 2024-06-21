@@ -41,13 +41,13 @@
 
 module eth_top #(
   parameter SWAP_ENDIANESS = 0,
-  parameter NUM_INTR        = 1
+  parameter NUM_INTR       = 1
 ) (
     input                                   chipset_clk,
 
     input                                   rst_n,
 
-    output      [NUM_INTR-1:0]               net_interrupt,
+    output      [NUM_INTR-1:0]              net_interrupt,
 
     input                                   noc_in_val,
     input       [`NOC_DATA_WIDTH-1:0]       noc_in_data,
@@ -55,10 +55,11 @@ module eth_top #(
 
     output                                  noc_out_val,
     output      [`NOC_DATA_WIDTH-1:0]       noc_out_data,
-    input                                   noc_out_rdy		
+    input                                   noc_out_rdy
 
 `ifdef PITON_FPGA_ETHERNETLITE
                                             ,
+    input                                   net_axi_clk,
     output                                  net_phy_rst_n,
 
     input                                   net_phy_tx_clk,
@@ -74,8 +75,8 @@ module eth_top #(
     output                                  net_phy_mdc
 `elsif PITON_FPGA_ETH_CMAC // PITON_FPGA_ETHERNETLITE
                    ,
-
     `ifndef PITONSYS_MEEP
+    input          eth_init_clk,
     input          qsfp_ref_clk_n,
     input          qsfp_ref_clk_p,
     input   [3:0]  qsfp_4x_grx_n,
@@ -86,7 +87,7 @@ module eth_top #(
 	 // in PITONSYS_MEEP the CLK, RST, and interrupts are inputs to this core
      input                                net_axi_clk,
      input                                net_axi_arstn,	 	 	 
-     input  [NUM_INTR-1:0]                net_axi_intr,
+     input  [NUM_INTR-1:0]                unsync_net_int,
 	 
 	 `ifndef ETHERNET_DMA 
 	 
@@ -168,13 +169,6 @@ module eth_top #(
 `endif // PITON_FPGA_ETH_CMAC
 );
 
-`ifndef PITONSYS_MEEP
-	wire net_axi_clk;
-	wire net_axi_arstn;
-	wire [NUM_INTR-1:0]  net_axi_intr; // Needs to be CDCd before output
-`endif
-
-
 `ifdef PITON_FPGA_ETH
 
 // afifo <-> netbridge
@@ -189,26 +183,26 @@ wire                            fifo_netbridge_rdy;
 // netbridge <-> mac axi
 `ifdef PITON_FPGA_ETHERNETLITE
 wire [`C_M_AXI_LITE_ADDR_WIDTH-1:0]   net_s_axi_awaddr;
-wire                                  net_s_axi_awvalid;
-wire                                  net_s_axi_awready;
+wire                            net_s_axi_awvalid;
+wire                            net_s_axi_awready;
 
 wire [`C_M_AXI_LITE_DATA_WIDTH-1:0]   net_s_axi_wdata;
 wire [`C_M_AXI_LITE_DATA_WIDTH/8-1:0] net_s_axi_wstrb;
-wire                                  net_s_axi_wvalid;
-wire                                  net_s_axi_wready;
+wire                            net_s_axi_wvalid;
+wire                            net_s_axi_wready;
 
 wire [`C_M_AXI_LITE_RESP_WIDTH-1:0]   net_s_axi_bresp;
-wire                                  net_s_axi_bvalid;
-wire                                  net_s_axi_bready;
+wire                            net_s_axi_bvalid;
+wire                            net_s_axi_bready;
 
 wire [`C_M_AXI_LITE_ADDR_WIDTH-1:0]   net_s_axi_araddr;
-wire                                  net_s_axi_arvalid;
-wire                                  net_s_axi_arready;
+wire                            net_s_axi_arvalid;
+wire                            net_s_axi_arready;
 
 wire [`C_M_AXI_LITE_DATA_WIDTH-1:0]   net_s_axi_rdata;
 wire [`C_M_AXI_LITE_RESP_WIDTH-1:0]   net_s_axi_rresp;
-wire                                  net_s_axi_rvalid;
-wire                                  net_s_axi_rready;
+wire                            net_s_axi_rvalid;
+wire                            net_s_axi_rready;
 
 // MDIO
 wire                            net_phy_mdio_i;
@@ -218,6 +212,8 @@ wire                            net_phy_mdio_t;
 wire net_phy_crs = 1'b0;
 wire net_phy_col = 1'b0;
 
+wire net_axi_arstn = rst_n;
+(* dont_touch = "true" *) wire unsync_net_int;
 
 `else // PITON_FPGA_ETHERNETLITE, full AXI4 for rest Eth cores
  `ifndef PITONSYS_MEEP
@@ -270,6 +266,10 @@ wire  [`AXI4_RESP_WIDTH   -1:0]    core_axi_bresp;
 wire  [`AXI4_USER_WIDTH   -1:0]    core_axi_buser;
 wire                               core_axi_bvalid;
 wire                               core_axi_bready;
+
+wire                               net_axi_clk   = chipset_clk;
+wire                               net_axi_arstn = rst_n;
+wire  [NUM_INTR-1:0]               unsync_net_int;
  `endif
 `endif
 
@@ -308,7 +308,6 @@ noc_bidir_afifo  net_afifo  (
 );
 `else // NO_ETH_CORE
 	// NO ETHERNET CORE
-  assign net_axi_clk = chipset_clk;
   assign afifo_netbridge_val  = noc_in_val;
   assign afifo_netbridge_data = noc_in_data;
   assign noc_in_rdy = netbridge_afifo_rdy;
@@ -323,8 +322,8 @@ noc_axilite_bridge #(
     .SLAVE_RESP_BYTEWIDTH   (4),
     .SWAP_ENDIANESS         (SWAP_ENDIANESS)
 ) noc_ethernet_bridge (
-    .clk                    (net_axi_clk           ),
-    .rst                    (~net_axi_arstn        ),      // TODO: rewrite to positive ?
+    .clk                    (net_axi_clk        ),
+    .rst                    (~rst_n             ),      // TODO: rewrite to positive ?
 
     .splitter_bridge_val    (afifo_netbridge_val   ),
     .splitter_bridge_data   (afifo_netbridge_data  ),
@@ -411,14 +410,12 @@ noc_axilite_bridge #(
 
 `else // PITON_FPGA_ETHERNETLITE, full AXI4 for rest Eth cores
 noc_axi4_bridge #(
-    .SWAP_ENDIANESS (SWAP_ENDIANESS),
-    .NOC2AXI_DESER_ORDER (1)
+    .SWAP_ENDIANESS (SWAP_ENDIANESS)
 ) noc_ethernet_bridge (
     .clk                (net_axi_clk     ),  
     .rst_n              (net_axi_arstn   ), 
     .uart_boot_en       (1'b0       ),
     .phy_init_done      (1'b1       ),
-    .axi_id_deadlock    (           ),
 
     .src_bridge_vr_noc2_val(afifo_netbridge_val ),
     .src_bridge_vr_noc2_dat(afifo_netbridge_data),
@@ -480,17 +477,25 @@ noc_axi4_bridge #(
 );
 `endif
 
-
+generate
+genvar idx;
+for(idx=0; idx<NUM_INTR; idx=idx+1) begin: irq_sync
+net_int_sync net_int_sync(
+  .clk_emac(net_axi_clk),
+  .clk_ciop(chipset_clk),
+  .rst_n(rst_n),
+  .net_int(unsync_net_int[idx]),
+  .sync_int(net_interrupt[idx])
+);
+end
+endgenerate
 
 `ifdef PITON_FPGA_ETHERNETLITE
 
-	assign net_axi_clk   = chipset_clk;
-	assign net_axi_arstn = rst_n;
-
 mac_eth_axi_lite mac_eth_axi_lite (
-  .s_axi_aclk       (net_axi_clk     ),       // input wire s_axi_aclk
-  .s_axi_aresetn    (net_axi_arstn   ),    // input wire s_axi_aresetn
-  .ip2intc_irpt     (net_axi_intr    ),     // output wire ip2intc_irpt
+  .s_axi_aclk       (net_axi_clk),       // input wire s_axi_aclk
+  .s_axi_aresetn    (rst_n),    // input wire s_axi_aresetn
+  .ip2intc_irpt     (unsync_net_int),     // output wire ip2intc_irpt
   .s_axi_awaddr     (net_s_axi_awaddr),     // input wire [12 : 0] s_axi_awaddr
   .s_axi_awvalid    (net_s_axi_awvalid),    // input wire s_axi_awvalid
   .s_axi_awready    (net_s_axi_awready),    // output wire s_axi_awready
@@ -539,9 +544,6 @@ IOBUF u_iobuf_dq (
 
 `elsif PITON_FPGA_ETH_CMAC // PITON_FPGA_ETHERNETLITE
 `ifndef PITONSYS_MEEP
-	assign net_axi_clk   = chipset_clk;
-	assign net_axi_arstn = rst_n;
-	// wire [NUM_INTR-1:0] net_cmac_intc; // output interrupts (0-tx, 1-rx)
 Eth_CMAC_syst eth_cmac_syst (
   .s_axi_clk        (net_axi_clk),          // input wire s_axi_aclk
   .s_axi_resetn     (net_axi_arstn),        // input wire s_axi_aresetn
@@ -594,8 +596,9 @@ Eth_CMAC_syst eth_cmac_syst (
   // .s_axi_awregion   (core_axi_awregion),
   // .s_axi_arregion   (core_axi_arregion),
 
-  .intc             ( net_axi_intr),     
+  .intc               (unsync_net_int), // output interrupts (0-tx, 1-rx)
 
+  .init_clk           (eth_init_clk),   // free-running clock required for Xilinx CMAC initialization in range 50...250 MHz
   .qsfp_refck_clk_n   (qsfp_ref_clk_n),
   .qsfp_refck_clk_p   (qsfp_ref_clk_p),
   .qsfp_4x_grx_n      (qsfp_4x_grx_n),
@@ -609,10 +612,7 @@ assign core_axi_buser  = `AXI4_USER_WIDTH'h0;
 
 `endif
 
-
 `else // PITON_FPGA_ETH_CMAC
-  assign net_axi_clk      = chipset_clk;
-  assign net_axi_arstn    = rst_n;
   // Ethernet core stub for simulation
   assign core_axi_awready = 1'b1;
   assign core_axi_wready  = 1'b1;
@@ -656,7 +656,7 @@ assign core_axi_buser  = `AXI4_USER_WIDTH'h0;
   assign core_axi_bresp   = 2'h0;
   assign core_axi_buser   = `AXI4_USER_WIDTH'h0;
 
-  assign net_axi_intr = {NUM_INTR{1'h0}};
+  assign unsync_net_int = {NUM_INTR{1'h0}};
 `endif
 
 `else  // PITON_FPGA_ETH
@@ -668,27 +668,8 @@ assign core_axi_buser  = `AXI4_USER_WIDTH'h0;
     assign net_phy_tx_en        = 1'b0;
     assign net_phy_mdc          = 1'b0;
 
-    assign net_axi_intr = {NUM_INTR{1'h0}};
+    assign net_interrupt = {NUM_INTR{1'h0}};
 
 `endif  // PITON_FPGA_ETH
-
-// CDC the interrupts that are in the net_axi_clk domain to the chipset_clk before output them
-
-reg [3:0] long_intr [NUM_INTR-1:0]; 
-
-generate 
-    genvar i;
-
- for (genvar i=0; i<NUM_INTR ; i = i +1) begin
-  
-   always @(posedge chipset_clk) begin
-     long_intr[i]  <= {long_intr[i][2:0], net_axi_intr[i]};   
-   end
-   
-   assign net_interrupt [i] = long_intr[i][3];
-   
-  end
- endgenerate    
-
 
 endmodule

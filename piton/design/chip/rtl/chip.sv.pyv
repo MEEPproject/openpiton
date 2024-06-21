@@ -151,32 +151,29 @@ module chip(
     output [`PITON_EXTRA_MEMS-1:0]                    mcx_processor_noc3_yummy
   `endif
 
-`ifdef PITON_ARIANE
-    ,
+`ifdef PITON_RV64_PLATFORM
+`ifdef PITON_RV64_DEBUGUNIT
     // Debug
-    input                                       ndmreset_i,    // non-debug module reset
-    input   [`PITON_NUM_TILES-1:0]                    debug_req_i,   // async debug request
-    output  [`PITON_NUM_TILES-1:0]                    unavailable_o, // communicate whether the hart is unavailable (e.g.: power down)
+,   input                                       ndmreset_i      // non-debug module reset
+,   input   [`PITON_NUM_TILES-1:0]              debug_req_i     // async debug request
+,   output  [`PITON_NUM_TILES-1:0]              unavailable_o   // communicate whether the hart is unavailable (e.g.: power down)
+`endif // ifdef PITON_RV64_DEBUGUNIT
+
+`ifdef PITON_RV64_CLINT
     // CLINT
-    input   [`PITON_NUM_TILES-1:0]                    timer_irq_i,   // Timer interrupts
-    input   [`PITON_NUM_TILES-1:0]                    ipi_i,         // software interrupt (a.k.a inter-process-interrupt)
+,   input   [`PITON_NUM_TILES-1:0]              timer_irq_i     // Timer interrupts
+,   input   [`PITON_NUM_TILES-1:0]              ipi_i           // software interrupt (a.k.a inter-process-interrupt)
+`endif // ifdef PITON_RV64_CLINT
+
+`ifdef PITON_RV64_PLIC
     // PLIC
-    input   [`PITON_NUM_TILES*2-1:0]                  irq_i          // level sensitive IR lines, mip & sip (async)
-`endif
+,   input   [`PITON_NUM_TILES*2-1:0]            irq_i           // level sensitive IR lines, mip & sip (async)
+`endif // ifdef PITON_RV64_PLIC
+`endif // ifdef PITON_RV64_PLATFORM
 
 `ifdef PITON_LAGARTO
-    ,
-    // Debug
-    input                                       ndmreset_i,    // non-debug module reset
-    input   [`PITON_NUM_TILES-1:0]                    debug_req_i,   // async debug request
-    output  [`PITON_NUM_TILES-1:0]                    unavailable_o, // communicate whether the hart is unavailable (e.g.: power down)
-    // CLINT
-    input   [`PITON_NUM_TILES-1:0]                    timer_irq_i,   // Timer interrupts
-    input   [`PITON_NUM_TILES-1:0]                    ipi_i,         // software interrupt (a.k.a inter-process-interrupt)
-    // PLIC
-    input   [`PITON_NUM_TILES*2-1:0]                  irq_i,         // level sensitive IR lines, mip & sip (async)
     // PMU
-    output  [27*(`PITON_NUM_TILES)-1:0]               pmu_sig_o
+,   output  [27*(`PITON_NUM_TILES)-1:0]         pmu_sig_o
 
 `endif
 );
@@ -458,8 +455,6 @@ module chip(
 %>
 
 
-
-
  `ifdef PITON_PRONOC 
  	import pronoc_pkg::*; 
  	localparam CHIP_SET_ID = T1*T2*T3+2*T1; // endp connected  of west port of router 0-0
@@ -570,12 +565,6 @@ module chip(
                 .clk(clk_muxed)
         
         );
-  
-  
-  
-  
-  
-  
  
 `else 
   localparam 
@@ -1182,6 +1171,8 @@ module chip(
        print(xbartemplate.replace("noc1", "noc3"))
 %>
 
+    wire [31:0] default_total_num_tiles;
+    assign default_total_num_tiles = `PITON_NUM_TILES;
     // Generate tile instances
 <%
     sub_assign = r'''
@@ -1202,20 +1193,23 @@ module chip(
         .default_chipid             (14'b0),    // the first chip
         .default_coreid_x           (COREIDX),
         .default_coreid_y           (COREIDY),
-        .flat_tileid                (`JTAG_FLATID_WIDTH'd_FLAT_ID_),
-    `ifdef PITON_ARIANE
-        .debug_req_i         ( debug_req_i[_FLAT_ID_]   ),
-        .unavailable_o       ( unavailable_o[_FLAT_ID_] ),
-        .timer_irq_i         ( timer_irq_i[_FLAT_ID_]   ),
-        .ipi_i               ( ipi_i[_FLAT_ID_]         ),
-        .irq_i               ( irq_i[_FLAT_ID_*2 +: 2]  ),
-    `endif
+        .default_total_num_tiles    (default_total_num_tiles      ),
+        .flat_tileid                (`JTAG_FLATID_WIDTH'd_FLAT_ID_)
+    `ifdef PITON_RV64_PLATFORM
+    `ifdef PITON_RV64_DEBUGUNIT
+        ,.debug_req_i         ( debug_req_i[_FLAT_ID_]   )
+        ,.unavailable_o       ( unavailable_o[_FLAT_ID_] )
+    `endif // ifdef PITON_RV64_DEBUGUNIT
+    `ifdef PITON_RV64_CLINT
+        ,.timer_irq_i         ( timer_irq_i[_FLAT_ID_]   )
+        ,.ipi_i               ( ipi_i[_FLAT_ID_]         )
+    `endif // ifdef PITON_RV64_CLINT
+    `ifdef PITON_RV64_PLIC
+        ,.irq_i               ( irq_i[_FLAT_ID_*2 +: 2]  )
+    `endif // ifdef PITON_RV64_PLIC
+    `endif // ifdef PITON_RV64_PLATFORM
+        ,
     `ifdef PITON_LAGARTO
-        .debug_req_i         ( debug_req_i[_FLAT_ID_]   ),
-        .unavailable_o       ( unavailable_o[_FLAT_ID_] ),
-        .timer_irq_i         ( timer_irq_i[_FLAT_ID_]   ),
-        .ipi_i               ( ipi_i[_FLAT_ID_]         ),
-        .irq_i               ( irq_i[_FLAT_ID_*2 +: 2]  ),
         .pmu_sig_o           ( pmu_sig_o[27*_FLAT_ID_+:27]),
     `endif
         // ucb from tiles to jtag
@@ -1224,8 +1218,7 @@ module chip(
         // ucb from jtag to tiles
         .jtag_tiles_ucb_val  ( jtag_tiles_ucb_val      ),
         .jtag_tiles_ucb_data ( jtag_tiles_ucb_data     ),
-     `ifdef PITON_PRONOC 
-             
+    `ifdef PITON_PRONOC 
         .dataIn1         (dataIn1[_FLAT_ID_] ),
         .validIn1        (validIn1[_FLAT_ID_]),
         .yummyIn1        (yummyIn1[_FLAT_ID_]),
@@ -1249,8 +1242,6 @@ module chip(
         .dataOut3        (dataOut3[_FLAT_ID_]),
         .validOut3       (validOut3[_FLAT_ID_]),
         .yummyOut3       (yummyOut3[_FLAT_ID_])     
-     
-       
     `else
     '''
 
@@ -1448,7 +1439,7 @@ module chip(
 
             # print "`ifdef RTL_SPARC%d" % flatid
             print(currenttile)
-            # print "`endif"            
+            # print "`endif"
     print ("`ifdef PITON_PRONOC");
     print(assign + edge_assign)
     print("`endif")    

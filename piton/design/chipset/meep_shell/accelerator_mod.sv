@@ -164,59 +164,6 @@ module openpiton_wrapper(
     output                                eth_axi_bready,
    `endif
 
-   `ifdef PITONSYS_MC_SRAM
-    // AXI interface
-    output [`AXI4_ID_WIDTH     -1:0]     sram_axi_awid,
-    output [`AXI4_ADDR_WIDTH   -1:0]     sram_axi_awaddr,
-    output [`AXI4_LEN_WIDTH    -1:0]     sram_axi_awlen,
-    output [`AXI4_SIZE_WIDTH   -1:0]     sram_axi_awsize,
-    output [`AXI4_BURST_WIDTH  -1:0]     sram_axi_awburst,
-    output                               sram_axi_awlock,
-    output [`AXI4_CACHE_WIDTH  -1:0]     sram_axi_awcache,
-    output [`AXI4_PROT_WIDTH   -1:0]     sram_axi_awprot,
-    output [`AXI4_QOS_WIDTH    -1:0]     sram_axi_awqos,
-    output [`AXI4_REGION_WIDTH -1:0]     sram_axi_awregion,
-    output [`AXI4_USER_WIDTH   -1:0]     sram_axi_awuser,
-    output                               sram_axi_awvalid,
-    input                                sram_axi_awready,
-
-    output  [`AXI4_ID_WIDTH     -1:0]    sram_axi_wid,
-    output  [`AXI4_DATA_WIDTH   -1:0]    sram_axi_wdata,
-    output  [`AXI4_STRB_WIDTH   -1:0]    sram_axi_wstrb,
-    output                               sram_axi_wlast,
-    output  [`AXI4_USER_WIDTH   -1:0]    sram_axi_wuser,
-    output                               sram_axi_wvalid,
-    input                                sram_axi_wready,
-
-    output  [`AXI4_ID_WIDTH     -1:0]    sram_axi_arid,
-    output  [`AXI4_ADDR_WIDTH   -1:0]    sram_axi_araddr,
-    output  [`AXI4_LEN_WIDTH    -1:0]    sram_axi_arlen,
-    output  [`AXI4_SIZE_WIDTH   -1:0]    sram_axi_arsize,
-    output  [`AXI4_BURST_WIDTH  -1:0]    sram_axi_arburst,
-    output                               sram_axi_arlock,
-    output  [`AXI4_CACHE_WIDTH  -1:0]    sram_axi_arcache,
-    output  [`AXI4_PROT_WIDTH   -1:0]    sram_axi_arprot,
-    output  [`AXI4_QOS_WIDTH    -1:0]    sram_axi_arqos,
-    output  [`AXI4_REGION_WIDTH -1:0]    sram_axi_arregion,
-    output  [`AXI4_USER_WIDTH   -1:0]    sram_axi_aruser,
-    output                               sram_axi_arvalid,
-    input                                sram_axi_arready,
-
-    input   [`AXI4_ID_WIDTH     -1:0]    sram_axi_rid,
-    input   [`AXI4_DATA_WIDTH   -1:0]    sram_axi_rdata,
-    input   [`AXI4_RESP_WIDTH   -1:0]    sram_axi_rresp,
-    input                                sram_axi_rlast,
-    input   [`AXI4_USER_WIDTH   -1:0]    sram_axi_ruser,
-    input                                sram_axi_rvalid,
-    output                               sram_axi_rready,
-
-    input   [`AXI4_ID_WIDTH     -1:0]    sram_axi_bid,
-    input   [`AXI4_RESP_WIDTH   -1:0]    sram_axi_bresp,
-    input   [`AXI4_USER_WIDTH   -1:0]    sram_axi_buser,
-    input                                sram_axi_bvalid,
-    output                               sram_axi_bready,
-    `endif
-
     // AXI non-cacheable system memory
     `ifdef PITON_NONCACH_MEM
     output  [`AXI4_ID_WIDTH     -1:0]    ncmem_axi_awid,
@@ -323,25 +270,37 @@ module openpiton_wrapper(
       output [`PITON_EXTRA_MEMS                      -1:0]   mcx_axi_bready,
     `endif
 
+  `ifdef PITON_RV64_DEBUGUNIT
+    // JTAG
+    input  dbg_jtag_tck,
+    input  dbg_jtag_tdi,
+    output dbg_jtag_tdo,
+    input  dbg_jtag_tms,
+  `endif //`ifdef PITON_RV64_DEBUGUNIT
+
     // AXI UART
-    output  [12:0]                       uart_axi_awaddr,
-    output                               uart_axi_awvalid,
-    input                                uart_axi_awready,
-    output  [31:0]                       uart_axi_wdata,
-    output  [3:0 ]                       uart_axi_wstrb,
-    output                               uart_axi_wvalid,
-    input                                uart_axi_wready,
-    input  [1:0]                         uart_axi_bresp,
-    input                                uart_axi_bvalid,
-    output                               uart_axi_bready,
-    output  [12:0]                       uart_axi_araddr,
-    output                               uart_axi_arvalid,
-    input                                uart_axi_arready,
-    input  [31:0]                        uart_axi_rdata,
-    input  [1:0]                         uart_axi_rresp,
-    input                                uart_axi_rvalid,
-    output                               uart_axi_rready,
-    input                                uart_irq
+    output [`C_M_AXI_LITE_ADDR_WIDTH-1:0]   uart_axi_awaddr,
+    output                                  uart_axi_awvalid,
+    input                                   uart_axi_awready,
+
+    output [`C_M_AXI_LITE_DATA_WIDTH-1:0]   uart_axi_wdata,
+    output [`C_M_AXI_LITE_DATA_WIDTH/8-1:0] uart_axi_wstrb,
+    output                                  uart_axi_wvalid,
+    input                                   uart_axi_wready,
+
+    input  [`C_M_AXI_LITE_RESP_WIDTH-1:0]   uart_axi_bresp,
+    input                                   uart_axi_bvalid,
+    output                                  uart_axi_bready,
+
+    output [`C_M_AXI_LITE_ADDR_WIDTH-1:0]   uart_axi_araddr,
+    output                                  uart_axi_arvalid,
+    input                                   uart_axi_arready,
+
+    input  [`C_M_AXI_LITE_DATA_WIDTH-1:0]   uart_axi_rdata,
+    input  [`C_M_AXI_LITE_RESP_WIDTH-1:0]   uart_axi_rresp,
+    input                                   uart_axi_rvalid,
+    output                                  uart_axi_rready,
+    input                                   uart_irq
   );
 
   /* The code inside multi-line comment is passed through to auto-generated by FPGA shell system_top.sv

@@ -29,6 +29,7 @@
 `include "mc_define.h"
 `include "define.tmp.h"
 `include "noc_axi4_bridge_define.vh"
+import noc_axi4_bridge_pkg::*;
 
 
 module noc_axi4_bridge_read #(
@@ -40,8 +41,9 @@ module noc_axi4_bridge_read #(
 
     // NOC interface
     input  wire                                          req_val,
-    input  wire [`AXI4_ADDR_WIDTH -1:0]                  req_addr,
-    input  wire [`AXI4_ID_WIDTH   -1:0]                  req_id,
+    input  wire [`AXI4_ADDR_WIDTH    -1:0]               req_addr,
+    input  wire [`MSG_DATA_SIZE_WIDTH-1:0]               req_size_log,
+    input  wire [`AXI4_ID_WIDTH      -1:0]               req_id,
     output wire                                          req_rdy,
 
     output wire                                          resp_val,
@@ -50,10 +52,10 @@ module noc_axi4_bridge_read #(
     input  wire                                          resp_rdy,
 
     // AXI Read Interface
-    output wire  [`AXI4_ID_WIDTH     -1:0]    m_axi_arid,
-    output wire  [`AXI4_ADDR_WIDTH   -1:0]    m_axi_araddr,
-    output wire  [`AXI4_LEN_WIDTH    -1:0]    m_axi_arlen,
-    output wire  [`AXI4_SIZE_WIDTH   -1:0]    m_axi_arsize,
+    output reg   [`AXI4_ID_WIDTH     -1:0]    m_axi_arid,
+    output reg   [`AXI4_ADDR_WIDTH   -1:0]    m_axi_araddr,
+    output reg   [`AXI4_LEN_WIDTH    -1:0]    m_axi_arlen,
+    output reg   [`AXI4_SIZE_WIDTH   -1:0]    m_axi_arsize,
     output wire  [`AXI4_BURST_WIDTH  -1:0]    m_axi_arburst,
     output wire                               m_axi_arlock,
     output wire  [`AXI4_CACHE_WIDTH  -1:0]    m_axi_arcache,
@@ -65,7 +67,7 @@ module noc_axi4_bridge_read #(
     input  wire                               m_axi_arready,
 
     input  wire  [`AXI4_ID_WIDTH     -1:0]    m_axi_rid,
-    input  wire  [`AXI4_DATA_WIDTH   -1:0]    m_axi_rdata,
+    input  wire  [AXI4_DAT_WIDTH_USED-1:0]    m_axi_rdata,
     input  wire  [`AXI4_RESP_WIDTH   -1:0]    m_axi_rresp,
     input  wire                               m_axi_rlast,
     input  wire  [`AXI4_USER_WIDTH   -1:0]    m_axi_ruser,
@@ -84,10 +86,6 @@ wire [`AXI4_ADDR_WIDTH-1:0]addr_paddings = `AXI4_ADDR_WIDTH'b0;
 // Tie constant outputs in axi4
 //==============================================================================
 
-    localparam BURST_LEN  = `AXI4_DATA_WIDTH / AXI4_DAT_WIDTH_USED;
-    localparam BURST_SIZE = AXI4_DAT_WIDTH_USED / 8;
-    assign m_axi_arlen    = clip2zer(BURST_LEN -1);
-    assign m_axi_arsize   = $clog2(BURST_SIZE);
     assign m_axi_arburst  = `AXI4_BURST_WIDTH'b01; // INCR address in bursts
     assign m_axi_arlock   = 1'b0; // Do not use locks
     assign m_axi_arcache  = `AXI4_CACHE_WIDTH'b11; // Non-cacheable bufferable requests
@@ -101,42 +99,36 @@ wire m_axi_argo = m_axi_arvalid & m_axi_arready;
 wire req_go = req_val & req_rdy;
 
 reg req_state;
-reg [`AXI4_ADDR_WIDTH -1:0] req_addr_f;
-reg [`AXI4_ID_WIDTH   -1:0] req_id_f;
 
 assign req_rdy = (req_state == IDLE);
 assign m_axi_arvalid = (req_state == GOT_REQ);
+wire signed [`MSG_DATA_SIZE_WIDTH:0] burst_len_log = $signed({1'b0, req_size_log}) - $clog2(AXI4_DAT_WIDTH_USED/8);
 
 always @(posedge clk)
     if(~rst_n) begin
         req_state <= IDLE;
-        req_addr_f <= 0;
-        req_id_f   <= 0;
     end else
         case (req_state)
             IDLE: if (req_go) begin
                 req_state  <= GOT_REQ;
-                req_addr_f <= req_addr;
-                req_id_f   <= req_id;
+                m_axi_araddr <= req_addr;
+                m_axi_arlen  <= (1 << clip2zer(burst_len_log)) - 1;
+                m_axi_arsize <= (burst_len_log < 0) ? req_size_log : $clog2(AXI4_DAT_WIDTH_USED/8);
+                m_axi_arid   <= req_id;
             end
             GOT_REQ: if (m_axi_argo)
                 req_state <= IDLE;
             default : begin
                 // should never end up here
-                req_state <= IDLE;
-                req_addr_f <= 0;
-                req_id_f   <= 0;
+                req_state    <= 1'bX;
+                m_axi_araddr <= `AXI4_ADDR_WIDTH'bX;
+                m_axi_arlen  <= `AXI4_LEN_WIDTH'bX;
+                m_axi_arsize <= `AXI4_SIZE_WIDTH'bX;
+                m_axi_arid   <= `AXI4_ID_WIDTH'bX;
             end
         endcase
 
-
-// Process information here
-assign m_axi_arid = req_id_f;
-assign m_axi_araddr = req_addr_f;
-
-
 // inbound responses
-
 reg [`AXI4_ID_WIDTH-1:0] resp_id_f;
 wire resp_go = resp_val & resp_rdy;
 wire m_axi_rgo = m_axi_rvalid & m_axi_rready;
@@ -146,11 +138,12 @@ reg resp_state;
 assign resp_val = (resp_state == GOT_RESP);
 assign m_axi_rready = (resp_state == IDLE);
 
-reg [clip2zer($clog2(BURST_LEN)-1) :0] burst_count;
+localparam MAX_BURST_LEN  = `AXI4_DATA_WIDTH / AXI4_DAT_WIDTH_USED;
+reg [clip2zer($clog2(MAX_BURST_LEN)-1) :0] burst_count;
 always @(posedge clk)
     if(~rst_n) begin
-        resp_state  <= IDLE;
-        resp_id_f   <= 0;
+        resp_id_f <= 0;
+        resp_state <= IDLE;
         resp_data   <= 0;
         burst_count <= 0;
     end else
@@ -159,7 +152,7 @@ always @(posedge clk)
                 if (m_axi_rlast) begin
                   resp_state <= GOT_RESP;
                   burst_count <= 0;
-                end else if (BURST_LEN > 1) burst_count <= burst_count + 1;
+                end else if (MAX_BURST_LEN > 1) burst_count <= burst_count + 1;
                 resp_id_f  <= m_axi_rid;
                 resp_data[{burst_count,{$clog2(AXI4_DAT_WIDTH_USED){1'b0}}} +: AXI4_DAT_WIDTH_USED] <= m_axi_rdata;
             end
@@ -167,19 +160,14 @@ always @(posedge clk)
                 resp_state <= IDLE;
             default : begin
                 // should never end up here
+                resp_id_f <= 0;
                 resp_state <= IDLE;
-                resp_id_f  <= 0;
                 resp_data  <= 0;
             end
         endcase
 
 // process data here
 assign resp_id = resp_id_f;
-
-function integer clip2zer;
-  input integer val;
-  clip2zer = val < 0 ? 0 : val;
-endfunction
 
 /*
 ila_read ila_read(

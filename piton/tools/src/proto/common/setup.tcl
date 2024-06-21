@@ -33,6 +33,8 @@ set MODEL_DIR $::env(MODEL_DIR)
 set DESIGN_DIR $::env(PROTOSYN_RUNTIME_DESIGN_PATH)
 set BOARD $::env(PROTOSYN_RUNTIME_BOARD)
 set BOARD_DIR "${DESIGN_DIR}/$BOARD"
+
+set VIVADO_VERSION [ string range [ version -short ] 0 3 ]
 source $DV_ROOT/tools/src/proto/common/rtl_setup.tcl
 source $DESIGN_DIR/design.tcl
 source $DV_ROOT/tools/src/proto/${BOARD}/board.tcl
@@ -44,6 +46,13 @@ set ISE_PROJECT_FILE "${PROJECT_DIR}/${PROJECT_NAME}.xise"
 
 # Combined variables from global, design, and board
 set ALL_INCLUDE_DIRS [concat ${GLOBAL_INCLUDE_DIRS} ${DESIGN_INCLUDE_DIRS}]
+
+set MEEP_RTL_FILES ""
+if { [info exists "::env(MEEP_SHELL)"] } {
+  set MEEP_RTL_FILES [list \
+    "${DV_ROOT}/design/chipset/meep_shell/accelerator_mod.sv" \
+  ]
+}
 
 set ALL_RTL_IMPL_FILES [concat ${DESIGN_RTL_IMPL_FILES} ${MEEP_RTL_FILES}] 
 
@@ -82,11 +91,6 @@ set ALL_DEFAULT_VERILOG_MACROS [concat \
 
 ################# CORE SPECIFIC SECTION #################
 #
-
-if  {$::env(PITON_ARIANE) != "0"} {
-  set ALL_INCLUDE_DIRS [concat ${ALL_INCLUDE_DIRS} ${ARIANE_INCLUDE_DIRS}]
-  puts "Add Ariane include directories"
-}
 
 if  {$::env(PITON_LAGARTO) != "0"} {
   set ALL_INCLUDE_DIRS [concat ${ALL_INCLUDE_DIRS} ${LAGARTO_INCLUDE_DIRS}]
@@ -127,25 +131,24 @@ if  {$::env(PITON_PRONOC) != "0"} {
 #########################################################
 
 
-if  {$::env(PITON_OST1) != "0"} {
+if {[info exists ::env(PITON_OST1)]} {
   append ALL_DEFAULT_VERILOG_MACROS " PITON_OST1"
 }
 
-if  {$::env(PITON_PICO) != "0"} {
+if {[info exists ::env(PITON_PICO)]} {
   append ALL_DEFAULT_VERILOG_MACROS " PITON_PICO"
 }
 
-if  {$::env(PITON_PICO_HET) != "0"} {
+if {[info exists ::env(PITON_PICO_HET)]} {
   append ALL_DEFAULT_VERILOG_MACROS " PITON_PICO PITON_PICO_HET"
 }
 
-if  {$::env(PITON_ARIANE) != "0"} {
-  append ALL_DEFAULT_VERILOG_MACROS " PITON_ARIANE WT_DCACHE"
+if {[info exists ::env(PITON_ARIANE)]} {
+  append ALL_DEFAULT_VERILOG_MACROS " PITON_ARIANE PITON_RV64_PLATFORM PITON_RV64_DEBUGUNIT PITON_RV64_CLINT PITON_RV64_PLIC WT_DCACHE"
 }
 
 if  {$::env(PITON_LAGARTO) != "0"} {
-  append ALL_DEFAULT_VERILOG_MACROS " PITON_LAGARTO WT_DCACHE"
-
+  append ALL_DEFAULT_VERILOG_MACROS " PITON_LAGARTO PITON_RV64_PLATFORM PITON_RV64_DEBUGUNIT PITON_RV64_CLINT PITON_RV64_PLIC WT_DCACHE"
 }
 
 if  {$::env(SA_HEVC_ENABLE) != "0"} {
@@ -172,7 +175,7 @@ if  {$::env(PITON_PRONOC) != "0"} {
   append ALL_DEFAULT_VERILOG_MACROS " PITON_PRONOC"
 }
 
-for {set k 0} {$k < $::env(PITON_LAGARTO)} {incr k} {
+for {set k 0} {$k < $::env(PITON_NUM_TILES)} {incr k} {
   if {[info exists "::env(RTL_LAGARTO$k)"]} {
     append ALL_DEFAULT_VERILOG_MACROS " RTL_LAGARTO$k"
   }
@@ -192,80 +195,83 @@ for {set k 0} {$k < $::env(PITON_LAGARTO)} {incr k} {
 
 puts "INFO: Using Defines: ${ALL_DEFAULT_VERILOG_MACROS}"
 
-# credit goes to https://github.com/PrincetonUniversity/openpiton/issues/50
-# and https://www.xilinx.com/support/answers/72570.html
-set tmp_PYTHONPATH $env(PYTHONPATH)
-set tmp_PYTHONHOME $env(PYTHONHOME)
-unset ::env(PYTHONPATH)
-unset ::env(PYTHONHOME)
-
 # Pre-process PyHP files
 source $DV_ROOT/tools/src/proto/common/pyhp_preprocess.tcl
 set ALL_RTL_IMPL_FILES [pyhp_preprocess ${ALL_RTL_IMPL_FILES}]
 set ALL_INCLUDE_FILES [pyhp_preprocess ${ALL_INCLUDE_FILES}]
 
 
-if  {$::env(PITON_ARIANE) != "0"} {
-  puts "INFO: compiling DTS and bootroms for Ariane (MAX_HARTS=$::env(PITON_NUM_TILES), UART_FREQ=$env(CONFIG_SYS_FREQ))..."
+if  {[info exists ::env(PITON_ARIANE)] || $::env(PITON_LAGARTO) != "0"} {
+  puts "INFO: compiling DTS and bootroms for Ariane/Lagarto (MAX_HARTS=$::env(PITON_NUM_TILES), UART_FREQ=$env(CONFIG_SYS_FREQ))..."
+  
+  
+  # credit goes to https://github.com/PrincetonUniversity/openpiton/issues/50 
+  # and https://www.xilinx.com/support/answers/72570.html
+  set tmp_PYTHONPATH $::env(PYTHONPATH)
+  set tmp_PYTHONHOME $::env(PYTHONHOME)
+  unset ::env(PYTHONPATH)
+  unset ::env(PYTHONHOME)
+  
   set TMP [pwd]
-  cd $::env(ARIANE_ROOT)/openpiton/bootrom/baremetal
+  cd $::env(DV_ROOT)/design/chipset/rv64_platform/bootrom/baremetal
   # Note: dd dumps info to stderr that we do not want to interpret
   # otherwise this command fails...
-  exec make clean 2> /dev/null
-  exec make all 2> /dev/null
-  puts "INFO: Baremetal compilation succeeded"
-  puts "INFO: Compiling bootrom for Linux"
-  cd $::env(ARIANE_ROOT)/openpiton/bootrom/linux
-  # Note: dd dumps info to stderr that we do not want to interpret
-  # otherwise this command fails...
-  exec make clean 2> /dev/null
-  exec make all MAX_HARTS=$::env(PITON_NUM_TILES) UART_FREQ=$::env(CONFIG_SYS_FREQ) 2> /dev/null
+  exec make clean 2>@1
+  exec make all 2>@1
+  puts "INFO: bare metal firmware generation complete"
+  if {[info exists ::env(PITON_UBOOT_SPL)]} {
+    cd $::env(DV_ROOT)/design/chipset/rv64_platform/bootrom
+    # create dts file first
+    exec python3 $::env(DV_ROOT)/tools/bin/riscvlib.py
+    # copy the dts for the bare metal bootrom first
+    exec cp $::env(PITON_ROOT)/piton/design/chipset/rv64_platform/bootrom/rv64_platform.dts $::env(PITON_ROOT)/piton/design/chipset/rv64_platform/bootrom/u-boot/uboot/arch/riscv/dts/openpiton-riscv64.dts
+    # then we generate the spl image
+    cd $::env(PITON_ROOT)/piton/design/chipset/rv64_platform/bootrom/u-boot/uboot/
+    # FIXME: find a better way to handle branches in git submodules
+    # exec git checkout dual-core
+    # Note: dd dumps info to stderr that we do not want to interpret
+    # otherwise this command fails...
+    exec make distclean 2>@1
+    exec make ARCH=riscv CROSS_COMPILE=riscv-none-embed- openpiton_riscv64_spl_defconfig
+    #TODO: update riscv toochain
+    exec make CROSS_COMPILE=riscv-none-embed- -j8 2>@1
+    # generate mover using the spl image
+    cd $::env(PITON_ROOT)/piton/design/chipset/rv64_platform/bootrom/u-boot/mover/
+    exec make clean
+    exec make 2>@1
+    # generate the linux bootrom using mover image
+    exec cp mover.sv $::env(PITON_ROOT)/piton/design/chipset/rv64_platform/bootrom/linux/bootrom_linux.sv
+    cd $::env(PITON_ROOT)/piton/design/chipset/rv64_platform/bootrom/linux/
+    exec sed -i {s/mover/bootrom_linux/g} bootrom_linux.sv
+  } else {
+    cd $::env(DV_ROOT)/design/chipset/rv64_platform/bootrom/linux
+    # Note: dd dumps info to stderr that we do not want to interpret
+    # otherwise this command fails...
+    exec make clean 2>@1
+    exec make all MAX_HARTS=$::env(PITON_NUM_TILES) UART_FREQ=$::env(CONFIG_SYS_FREQ) 2>@1
+  }
   puts "INFO: done"
   # two targets per hart (M,S) and two interrupt sources (UART, DMA Ethernet(2))
   set NUM_TARGETS [expr 2*$::env(PITON_NUM_TILES)]
   set NUM_SOURCES 3
+  if  {[info exists ::env(PITON_ARIANE)]} {
   puts "INFO: generating PLIC for Ariane ($NUM_TARGETS targets, $NUM_SOURCES sources)..."
   cd $::env(ARIANE_ROOT)/src/rv_plic/rtl
-  exec ./gen_plic_addrmap.py -t $NUM_TARGETS -s $NUM_SOURCES > plic_regmap.sv
-
-  cd $TMP
-  puts "INFO: done"
-}
-
-
-if  { $::env(PITON_LAGARTO) != "0"} {
-  puts "INFO: compiling DTS and bootroms for Lagarto (MAX_HARTS=$::env(PITON_NUM_TILES), UART_FREQ=$env(CONFIG_SYS_FREQ))..."
-  set TMP [pwd]
-  cd $::env(LAGARTO_ROOT)/openpiton/bootrom/baremetal
-  # Note: dd dumps info to stderr that we do not want to interpret
-  # otherwise this command fails...
-  exec make clean 2> /dev/null
-  exec make all 2> /dev/null
-  puts "INFO: Baremetal compilation succeeded"
-  puts "INFO: Compiling bootrom for Linux"
-  cd $::env(LAGARTO_ROOT)/openpiton/bootrom/linux
-  # Note: dd dumps info to stderr that we do not want to interpret
-  # otherwise this command fails...
-  exec make clean 2> /dev/null
-  exec make all MAX_HARTS=$::env(PITON_NUM_TILES) UART_FREQ=$::env(CONFIG_SYS_FREQ) 2> /dev/null
-  puts "INFO: done"
-  # two targets per hart (M,S) and three interrupt sources (UART, DMA Ethernet(2))
-  set NUM_TARGETS [expr 2*$::env(PITON_NUM_TILES)]
-  set NUM_SOURCES 3
+  }
+  if  { $::env(PITON_LAGARTO) != "0"} {
   puts "INFO: generating PLIC for Lagarto ($NUM_TARGETS targets, $NUM_SOURCES sources)..."
   cd $::env(LAGARTO_ROOT)/src/rv_plic/rtl
+  }
   exec ./gen_plic_addrmap.py -t $NUM_TARGETS -s $NUM_SOURCES > plic_regmap.sv
 
   cd $TMP
   puts "INFO: done"
+  set ::env(PYTHONPATH) $tmp_PYTHONPATH
+  set ::env(PYTHONHOME) $tmp_PYTHONHOME
 }
 
-set ::env(PYTHONPATH) $tmp_PYTHONPATH
-set ::env(PYTHONHOME) $tmp_PYTHONHOME
-
 if { [info exists ::env(BROM_ONLY) ]} {
-	puts "Boot ROM created. Finishing protosyn..."
-	exec kill [pid]
-	exec kill $::env(PROTOPID)
-}	
-
+  puts "Boot ROM created. Finishing protosyn..."
+  exec kill [pid]
+  exec kill $::env(PROTOPID)
+}

@@ -35,41 +35,6 @@
     from pyhplib import *
 %>
 
-<%
-DMBR_BIN_NUM = 10
-import pyhplib
-from riscvlib import *
-import os
-from pyhplib import *
-import riscvlib
-import time
-
-if PITON_ARIANE:
-  devices = pyhplib.ReadDevicesXMLFile()
-  core = "Ariane"
-
-  # just use a default frequency for device tree generation if not defined
-  sysFreq = 50000000
-  if 'CONFIG_SYS_FREQ' in os.environ:
-    sysFreq = int(os.environ['CONFIG_SYS_FREQ'])
-
-  timeStamp = time.strftime("%b %d %Y %H:%M:%S", time.localtime())
-  gen_riscv_dts(devices, PITON_X_TILES*PITON_Y_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['ARIANE_ROOT']+"/openpiton/bootrom/", timeStamp,core)
-  get_bootrom_info(devices, PITON_X_TILES*PITON_Y_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['ARIANE_ROOT']+"/openpiton/bootrom/", timeStamp,core)
-
-if PITON_LAGARTO:
-  devices = pyhplib.ReadDevicesXMLFile()
-  core = "Lagarto"
-   
-  # just use a default frequency for device tree generation if not defined
-  sysFreq = 50000000
-  if 'CONFIG_SYS_FREQ' in os.environ:
-    sysFreq = int(os.environ['CONFIG_SYS_FREQ'])
-
-  timeStamp = time.strftime("%b %d %Y %H:%M:%S", time.localtime())
-  gen_riscv_dts(devices, PITON_X_TILES*PITON_Y_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['LAGARTO_ROOT']+"/bootrom/", timeStamp,core)
-  get_bootrom_info(devices, PITON_X_TILES*PITON_Y_TILES, sysFreq, sysFreq/128, sysFreq, os.environ['LAGARTO_ROOT']+"/bootrom/", timeStamp,core)
-%>
 
 `ifdef PITON_DPI
 import "DPI-C" function longint read_64b_call (input longint addr);
